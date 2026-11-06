@@ -169,10 +169,10 @@ body.style-ship .w { letter-spacing: -0.045em; font-weight: 900; }
 /* ---------- Fisheye: a convex stack under a lens ---------- */
 body.style-fisheye .lens,
 body.style-fisheye-visual .lens {
-  /* keep the filtered area to the word stack, not the whole screen */
+  /* the glass: words keep inside it */
   width: min(92vw, 150vh); height: 84vh;
-  filter: url(#lensFilter);
 }
+.w .t .lc { vertical-align: middle; line-height: 1; }
 body.style-fisheye .lens::after,
 body.style-fisheye-visual .lens::after {
   /* faint glass sheen */
@@ -336,6 +336,7 @@ body.idle .caret { animation-play-state: paused; }
 /* The JS motion engine drives position, scale and fades at a capped frame rate;
    CSS keeps only colour changes and the short slab wipe. */
 .w, .ln, .caret { transition: color .18s linear !important; }
+.w.active { transition: color .04s linear !important; }   /* the sung word turns white at once */
 .drift, body.style-ship .drift { animation: none !important; }
 
 /* ---------- Fullscreen views ---------- */

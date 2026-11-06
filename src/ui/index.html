@@ -7,16 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="mode-fullscreen style-ship" id="appBody">
-
-  <!-- Convex lens filter (displacement map generated in app.js) -->
   <svg class="lens-defs" width="0" height="0" aria-hidden="true">
-    <filter id="lensFilter" x="0" y="0" width="1" height="1"
-            filterUnits="objectBoundingBox" primitiveUnits="objectBoundingBox"
-            color-interpolation-filters="sRGB">
-      <feImage id="lensMap" x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map"/>
-      <feDisplacementMap in="SourceGraphic" in2="map" scale="0.17"
-                         xChannelSelector="R" yChannelSelector="G"/>
-    </filter>
     <!-- Ink / clay morph: blur, then harden the alpha back into solid shapes -->
     <filter id="gooFilter" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
       <feGaussianBlur id="gooBlur" in="SourceGraphic" stdDeviation="0" result="b"/>

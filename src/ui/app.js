@@ -76,38 +76,6 @@
   }
   addEventListener('resize', computeUnit);
 
-  // ---------- Convex lens displacement map ----------
-  (function buildLensMap() {
-    const N = 320, k = 0.42;
-    const c = document.createElement('canvas');
-    c.width = c.height = N;
-    const ctx = c.getContext('2d');
-    const img = ctx.createImageData(N, N);
-    // Small scale = each 8-bit step moves ~1px, so edges stay smooth. Must match index.html.
-    const scale = 0.17;
-    for (let y = 0; y < N; y++) {
-      for (let x = 0; x < N; x++) {
-        const px = (x / (N - 1)) * 2 - 1;
-        const py = (y / (N - 1)) * 2 - 1;
-        const r2 = px * px + py * py;
-        const f = r2 < 1 ? k * (1 - r2) : 0;
-        // sample closer to the centre -> magnify the middle, compress the rim
-        const ox = (-f * px * 0.5) / scale;
-        const oy = (-f * py * 0.5) / scale;
-        const i = (y * N + x) * 4;
-        img.data[i] = Math.round((0.5 + ox) * 255);
-        img.data[i + 1] = Math.round((0.5 + oy) * 255);
-        img.data[i + 2] = 128;
-        img.data[i + 3] = 255;
-      }
-    }
-    ctx.putImageData(img, 0, 0);
-    const href = c.toDataURL();
-    const fe = document.getElementById('lensMap');
-    fe.setAttribute('href', href);
-    fe.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', href);
-  })();
-
   // ---------- Style / mode ----------
   const STYLE_CLASS = {
     SHIP: 'style-ship', FISHEYE: 'style-fisheye', FISHEYE_VISUAL: 'style-fisheye-visual', VISUAL: 'style-visual',
@@ -675,13 +643,13 @@
         const OPAC = [1, 0.95, 0.5];
         for (let d = 2; d >= 1; d--) {
           const k = wi - d;
-          if (k >= 0) slots.push(slot(li, k, W[k], 'past', { s: SCALE[d], o: OPAC[d], italic: d === 2, z: -40 * d }));
+          if (k >= 0) slots.push(slot(li, k, W[k], 'past', { kind: 'fx', s: SCALE[d], o: OPAC[d], italic: d === 2, z: -40 * d }));
         }
-        slots.push(slot(li, wi, W[wi], 'active', { s: Math.min(SCALE[0], fit(W[wi].text, 0.5, SCALE[0])), r: -1.5, z: 30 }));
+        slots.push(slot(li, wi, W[wi], 'active', { kind: 'fx', s: Math.min(SCALE[0], fit(W[wi].text, 0.5, SCALE[0])), r: -1.5, z: 30 }));
         for (let d = 1; d <= 2; d++) {
           const k = wi + d;
           if (k < W.length && (d === 1 || prog > 0.4)) {
-            slots.push(slot(li, k, W[k], 'ghost', { s: SCALE[d] * 0.92, o: d === 1 ? 0.75 : 0.4, z: -40 * d }));
+            slots.push(slot(li, k, W[k], 'ghost', { kind: 'fx', s: SCALE[d] * 0.92, o: d === 1 ? 0.75 : 0.4, z: -40 * d }));
           }
         }
         return stackAroundActive(slots, 0.02);
@@ -756,14 +724,35 @@
       case 'ORBIT': {
         // the line rides a carousel that turns to bring the sung word to the front
         const R = Math.min(innerWidth * 0.34, unit * 3.6);
-        const step = 0.5;
+        const sOf = (w, k) => k === wi ? fit(w.text, 0.5, 1.15) : Math.min(0.8, fit(w.text, 0.35, 0.8));
+        const half = k => emWidth(W[k].text) * unit * sOf(W[k], k) / 2;
+        const gap = unit * 0.28;
+        // place words by where they land on screen after the 900px perspective (farther = smaller and
+        // pulled in), so each one starts a gap after its neighbour ends
+        const P = th => 900 / (900 - (Math.cos(th) - 1) * R);
+        const edge = (k, th) => Math.sin(th) * R * P(th) - half(k) * P(th);      // inner edge on screen
+        const ang = new Array(W.length).fill(0);
+        let outer = half(wi);
+        for (let k = wi + 1; k < W.length; k++) {
+          let lo = ang[k - 1], hi = 1.6;
+          for (let i = 0; i < 14; i++) { const m = (lo + hi) / 2; if (edge(k, m) < outer + gap) lo = m; else hi = m; }
+          ang[k] = hi; outer = Math.sin(hi) * R * P(hi) + half(k) * P(hi);
+          if (hi >= 1.6) { for (let j = k + 1; j < W.length; j++) ang[j] = 9; break; }
+        }
+        outer = half(wi);
+        for (let k = wi - 1; k >= 0; k--) {
+          let lo = -ang[k + 1], hi = 1.6;
+          for (let i = 0; i < 14; i++) { const m = (lo + hi) / 2; if (edge(k, m) < outer + gap) lo = m; else hi = m; }
+          ang[k] = -hi; outer = Math.sin(hi) * R * P(hi) + half(k) * P(hi);
+          if (hi >= 1.6) { for (let j = k - 1; j >= 0; j--) ang[j] = -9; break; }
+        }
         W.forEach((w, k) => {
-          const th = (k - wi) * step * (variant ? variant.dir : 1);
+          const th = ang[k] * (variant ? variant.dir : 1);
           if (Math.abs(th) > 1.45) return;
           const c = Math.cos(th);
           const role = k < wi ? 'past' : k === wi ? 'active' : 'ghost';
           slots.push(slot(li, k, w, role, {
-            s: role === 'active' ? fit(w.text, 0.5, 1.15) : Math.min(0.8, fit(w.text, 0.35, 0.8)),
+            s: sOf(w, k),
             x: Math.sin(th) * R, z: (c - 1) * R, y: area.centre,
             o: role === 'active' ? 1 : c * c * 0.85,
           }));
@@ -1115,7 +1104,7 @@
     glide: bezier(.22, 1, .36, 1), spring: bezier(.34, 1.56, .64, 1), slam: bezier(.2, 1.9, .45, 1),
     squeeze: bezier(.7, 0, .25, 1), hard: bezier(.6, 0, .2, 1), out: bezier(0, 0, .58, 1), in: bezier(.42, 0, 1, 1),
   };
-  // [movement ms, movement easing, fade ms] per style / mood (the old CSS timings)
+  // [movement ms, movement easing, fade ms, fade delay ms] per style / mood
   function motionFor(el, leaving) {
     const mood = body.dataset.mood;
     if (el.classList.contains('caret')) return [180, EASE.glide, 180];
@@ -1127,7 +1116,7 @@
     switch (style) {
       case 'POP': return leaving ? [350, EASE.in, 300] : [620, EASE.spring, 220];
       case 'STAMP': return el.classList.contains('active') && !leaving ? [420, EASE.slam, 120] : [620, EASE.spring, 220];
-      case 'SQUEEZE': return [460, EASE.squeeze, leaving ? 150 : 200];
+      case 'SQUEEZE': return leaving ? [460, EASE.squeeze, 150, 340] : [460, EASE.squeeze, 200];
       case 'LINE': return [450, EASE.glide, 300];
       case 'ORBIT': return [600, EASE.glide, 450];
       case 'INKBLOT': return [620, EASE.glide, 500];
@@ -1145,30 +1134,37 @@
     el._v = Object.assign(el._v || {}, vals);
     writeVars(el, vals);
   }
-  function animateTo(el, vals, leaving) {
+  function animateTo(el, vals, leaving, becomingActive) {
     const cur = Object.assign({}, el._v || {});
     for (const k in vals) if (cur[k] === undefined) cur[k] = vals[k];
     let changed = false;
     for (const k in vals) if (Math.abs(cur[k] - vals[k]) > 1e-3) changed = true;
     if (!changed && !el._tw) { setNow(el, vals); return 0; }
-    const [dur, ease, odur] = motionFor(el, leaving);
+    if (el._tw && !leaving) {
+      // already heading there: let it finish instead of restarting (a restart would re-run a slow fade)
+      let same = true;
+      for (const k in vals) if (el._tw.to[k] === undefined || Math.abs(el._tw.to[k] - vals[k]) > 1e-3) { same = false; break; }
+      if (same) return Math.max(0, el._tw.t0 + Math.max(el._tw.dur, el._tw.odur + (el._tw.odelay || 0)) - performance.now());
+    }
+    let [dur, ease, odur, odelay = 0] = motionFor(el, leaving);
+    if (becomingActive) { odur = Math.min(odur, 140); odelay = 0; }   // the sung word is readable at once
     if (reduceMotion()) {
       // calmer: positions snap, only the fade animates
       const snap = Object.assign({}, vals); delete snap.o;
       setNow(el, snap);
       el._tw = { from: cur, to: Object.assign({}, cur, snap, { o: vals.o ?? cur.o }), t0: performance.now(), dur: 1, ease: EASE.out, odur: 250 };
     } else {
-      el._tw = { from: cur, to: Object.assign({}, cur, vals), t0: performance.now(), dur, ease, odur };
+      el._tw = { from: cur, to: Object.assign({}, cur, vals), t0: performance.now(), dur, ease, odur, odelay };
     }
     el.classList.add('mv');                  // own graphics layer only while it moves
     moving.add(el);
-    return Math.max(dur, odur);
+    return Math.max(dur, odur + odelay);
   }
   function stepMotion(now) {
     moving.forEach(el => {
       const tw = el._tw;
       if (!tw || !el.isConnected) { moving.delete(el); el.classList.remove('mv'); return; }
-      const p = Math.min(1, (now - tw.t0) / tw.dur), po = Math.min(1, (now - tw.t0) / tw.odur);
+      const p = Math.min(1, (now - tw.t0) / tw.dur), po = Math.min(1, Math.max(0, now - tw.t0 - (tw.odelay || 0)) / tw.odur);
       const e = tw.ease(p), eo = EASE.out(po);
       const v = {};
       for (const k in tw.to) {
@@ -1241,7 +1237,20 @@
     }
     const t = document.createElement('span');
     t.className = 't';
-    t.textContent = sl.text;
+    if (sl.kind === 'fx') {
+      // Fisheye: real text at real sizes (no pixel filter), so it stays sharp at any scale
+      const chars = Array.from(sl.text), n = chars.length;
+      chars.forEach((ch, i) => {
+        const u = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
+        const c = document.createElement('span');
+        c.className = 'lc';
+        c.style.fontSize = (0.86 + 0.3 * Math.cos(u * Math.PI / 2)).toFixed(3) + 'em';
+        c.textContent = ch;
+        t.appendChild(c);
+      });
+    } else {
+      t.textContent = sl.text;
+    }
     el.appendChild(t);
     if (sl.icon) {
       const ic = document.createElement('span');
@@ -1254,7 +1263,7 @@
 
   function place(el, sl, immediate) {
     if (immediate) setNow(el, slotVals(sl));
-    else animateTo(el, slotVals(sl));
+    else animateTo(el, slotVals(sl), false, sl.role === 'active' && !el.classList.contains('active'));
     el.style.setProperty('--wipe', (sl.wipe || 0.2) + 's');
     if (sl.chars) el.style.setProperty('--chars', sl.chars);
     if (sl.wpx) el.dataset.w = sl.wpx;

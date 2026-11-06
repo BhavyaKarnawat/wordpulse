@@ -15,7 +15,7 @@ def test_ui_assets_integrity():
 
     html = (ui_dir / "index.html").read_text(encoding="utf-8")
     assert 'id="stack"' in html
-    assert 'id="lensFilter"' in html
+    assert 'id="gooFilter"' in html and 'lensFilter' not in html   # fisheye is real text now, no pixel filter
     assert 'id="styleSelect"' in html            # styles are offered in a dropdown filled by app.js
     assert 'id="player"' in html and 'id="fsArt"' in html
 
