@@ -523,7 +523,8 @@
 
   // ---------- Layout per style ----------
   // Each slot: { key, text, icon, role: past|active|ghost, s, x, y, z, r, o, italic, wipe }
-  // Every style pins the sung word to the centre of the visible area.
+  // Styles keep the words near the chosen position, but let them flow and pan naturally:
+  // the block of words is what gets centred (loosely), not each sung word.
 
   function slot(li, wi, w, role, extra) {
     return Object.assign({ key: li + ':' + wi, text: w.text, icon: w.icon || '', role, s: 1, x: 0, y: 0, r: 0, o: 1, italic: false }, extra);
@@ -557,7 +558,7 @@
 
   // Vertical stack around the sung word: rows above grow upward, rows below grow
   // downward. If a side doesn't fit it shrinks; the sung word never moves.
-  function stackAroundActive(slots, gap) {
+  function stackAroundActive(slots, gap, loose = 0.8) {
     const area = safeArea();
     const ai = slots.findIndex(s => s.role === 'active');
     if (ai < 0) return slots;
@@ -582,6 +583,14 @@
     };
     side(slots.slice(0, ai).reverse(), -1);  // nearest first, going up
     side(slots.slice(ai + 1), 1);            // nearest first, going down
+    // let the stack settle where it naturally balances: move the whole block toward centring the
+    // block itself (by `loose`), so the sung word rides up and down with the wall instead of being nailed
+    const minT = Math.min(...slots.map(q => q.y - rowH(q.s) / 2));
+    const maxB = Math.max(...slots.map(q => q.y + rowH(q.s) / 2));
+    let shift = (area.centre - (minT + maxB) / 2) * loose;
+    shift = Math.max(area.top - minT, Math.min(area.bottom - maxB, shift));
+    if (area.top - minT > area.bottom - maxB) shift = 0;      // doesn't fit either way: keep the sung word put
+    slots.forEach(q => { q.y += shift; });
     return slots;
   }
 
@@ -633,7 +642,7 @@
         }
         slots.push(slot(li, wi, W[wi], 'active', { s: fit(W[wi].text, 0.38, 1.55) }));
         if (showGhost) slots.push(slot(li, wi + 1, W[wi + 1], 'ghost', { s: fit(W[wi + 1].text, 0.3, 0.9) * 0.6, o: 0.5 }));
-        return stackAroundActive(slots, -0.06);
+        return stackAroundActive(slots, -0.06, 0.85);
       }
 
       case 'FISHEYE':
@@ -652,7 +661,7 @@
             slots.push(slot(li, k, W[k], 'ghost', { kind: 'fx', s: SCALE[d] * 0.92, o: d === 1 ? 0.75 : 0.4, z: -40 * d }));
           }
         }
-        return stackAroundActive(slots, 0.02);
+        return stackAroundActive(slots, 0.02, 0.4);   // the glass stays put; words flow through it
       }
 
       case 'INKBLOT':
@@ -667,7 +676,9 @@
 
       case 'POP': {
         // one word at a time, big, springing in
-        slots.push(slot(li, wi, W[wi], 'active', { s: fit(W[wi].text, 0.7, 2.1), y: area.centre }));
+        const s = fit(W[wi].text, 0.7, 2.1);
+        const [jx, jy] = jitter(li, wi, emWidth(W[wi].text) * unit * s, unit * s, area, 0.9, 0.35);
+        slots.push(slot(li, wi, W[wi], 'active', { s, x: jx, y: area.centre + jy }));
         return slots;
       }
 
@@ -684,8 +695,10 @@
             r: (hash01(li * 31 + k) - 0.5) * 30 * (variant ? variant.scatter : 1), o: 0.42,
           }));
         }
+        const ss = fit(W[wi].text, 0.6, 1.5);
+        const [jx, jy] = jitter(li, wi, emWidth(W[wi].text) * unit * ss, unit * ss, area, 0.7, 0.3);
         slots.push(slot(li, wi, W[wi], 'active', {
-          s: fit(W[wi].text, 0.6, 1.5), y: area.centre, r: (hash01(li * 13 + wi) - 0.5) * 10,
+          s: ss, x: jx, y: area.centre + jy, r: (hash01(li * 13 + wi) - 0.5) * 10,
         }));
         return slots;
       }
@@ -706,13 +719,18 @@
         });
         const lineH = unit * s * 1.22;
         const activeRow = rows.findIndex(r => r.some(c => c.k === wi));
+        // the whole line sits centred and stays still; it only scrolls if it is taller than the room
+        let rowY0 = area.centre - (rows.length - 1) * lineH / 2;
+        const ay = rowY0 + activeRow * lineH, pad = lineH * 0.6;
+        if (ay < area.top + pad) rowY0 += area.top + pad - ay;
+        if (ay > area.bottom - pad) rowY0 -= ay - (area.bottom - pad);
         rows.forEach((row, ri) => {
           const total = row.reduce((sum, c) => sum + c.wpx, 0) + space * (row.length - 1);
           let x = -total / 2;
           row.forEach(c => {
             const role = c.k < wi ? 'past' : c.k === wi ? 'active' : 'ghost';
             slots.push(slot(li, c.k, W[c.k], role, {
-              s, x: x + c.wpx / 2, y: area.centre + (ri - activeRow) * lineH,
+              s, x: x + c.wpx / 2, y: rowY0 + ri * lineH,
               o: role === 'ghost' ? 0.6 : 1, wipe: role === 'active' ? wordSpan(c.k) : 0,
             }));
             x += c.wpx + space;
@@ -775,7 +793,7 @@
         if (wi >= 1) slots.push(slot(li, wi - 1, W[wi - 1], 'past', { s: fit(W[wi - 1].text, 0.6, 1.35) }));
         slots.push(slot(li, wi, W[wi], 'active', { s: Math.min(0.95, fit(W[wi].text, 0.5, 0.95)), r: -2 }));
         if (showGhost) slots.push(slot(li, wi + 1, W[wi + 1], 'ghost', { s: 0.62, o: 0.45 }));
-        return stackAroundActive(slots, 0.04);
+        return stackAroundActive(slots, 0.04, 0.85);
       }
     }
   }
@@ -819,6 +837,14 @@
              len: Math.hypot(dx, dy), ang: Math.atan2(dy, dx) * 180 / Math.PI };
   }
 
+  const graphCam = { li: -1, style: '', unit: 0, x: 0, y: 0 };
+  // a small, stable offset per word that still keeps it on screen
+  function jitter(li, wi, wpx, hpx, area, ax, ay) {
+    const roomX = Math.max(0, innerWidth * 0.46 - wpx / 2);
+    const roomY = Math.max(0, Math.min(area.centre - area.top, area.bottom - area.centre) - hpx / 2);
+    return [Math.min(roomX, unit * ax) * (hash01(li * 71 + wi * 7) * 2 - 1),
+            Math.min(roomY, unit * ay) * (hash01(li * 37 + wi * 11) * 2 - 1)];
+  }
   function graphLayout(loc, area) {
     const { li, words: W, wi } = loc;
     const pts = graphPoints(style, li, wi, W.length);
@@ -827,7 +853,18 @@
     // centre the sung *word* (its star sits just above it): the node block is ~1.73em tall,
     // the star's centre is .35em from its top, so the word's middle is ~.52em below the star
     const lift = unit * 0.6 * 0.515;
-    const P = k => ({ x: (pts[k].x - p0.x) * step, y: area.centre - lift + (pts[k].y - p0.y) * step });
+    const Q = k => ({ x: (pts[k].x - pts[0].x) * step, y: (pts[k].y - pts[0].y) * step });
+    const a = Q(wi);
+    if (graphCam.li !== li || graphCam.style !== style || graphCam.unit !== unit) {
+      Object.assign(graphCam, { li, style, unit, x: a.x, y: a.y });       // new line: frame its first star
+    } else {
+      // pan only as far as needed to keep the sung star inside the middle of the screen
+      const dx = innerWidth * 0.15, dy = Math.max(unit * 0.3, (area.bottom - area.top) * 0.14);
+      graphCam.x = Math.max(a.x - dx, Math.min(a.x + dx, graphCam.x));
+      graphCam.y = Math.max(a.y - dy, Math.min(a.y + dy, graphCam.y));
+    }
+    const P = k => { const q = Q(k); return { x: q.x - graphCam.x, y: area.centre - lift + q.y - graphCam.y }; };
+    void p0;
     const slots = [];
     // older stars that have panned out of view fade away instead of sitting half-cut at the edge
     const halfW = innerWidth * 0.46;
@@ -883,7 +920,7 @@
     const slots = [];
     rows.forEach((row, ri) => {
       const current = row.idx === li;
-      const y = area.centre + (ri - (rows.length - 1)) * lineH;
+      const y = area.centre + (ri - (rows.length - 1) / 2) * lineH;
       slots.push({ key: `g${row.idx}`, kind: 'gutter', text: String(row.idx + 1).padStart(3, ' '), icon: '', role: 'past',
                    x: left, y, s, r: 0, o: current ? 0.7 : 0.35 });
       let col = 5;
