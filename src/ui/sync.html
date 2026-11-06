@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sync words</title>
+<style>
+  :root {
+    --hl: #ff2d6f;
+    --bg: #0b0b0d;
+    --panel: #151518;
+    --text: #f4f4f5;
+    --dim: rgba(244, 244, 245, .42);
+    --font: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--ui); user-select: none; }
+  body { display: grid; grid-template-rows: auto 1fr auto; }
+
+  header { display: flex; align-items: center; gap: 14px; padding: 16px 22px; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .meta { min-width: 0; flex: 1; }
+  .title { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { color: var(--dim); font-size: 13px; margin-top: 2px; }
+  .badge { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 5px 9px; border-radius: 999px; background: rgba(255,255,255,.07); color: var(--dim); white-space: nowrap; }
+  .badge.tapped { background: color-mix(in oklab, var(--hl) 22%, transparent); color: var(--hl); }
+  .clock { font: 600 13px/1 var(--ui); font-variant-numeric: tabular-nums; color: var(--dim); }
+
+  main { display: grid; place-content: center; gap: 22px; padding: 18px 28px; text-align: center; cursor: pointer; }
+  .counter { font-size: 12px; color: var(--dim); letter-spacing: .04em; }
+  .line { font-family: var(--font); font-weight: 800; letter-spacing: -0.02em; line-height: 1.25; }
+  .line.prev, .line.next { font-size: clamp(16px, 2.4vw, 24px); color: var(--dim); font-weight: 700; }
+  .line.cur { font-size: clamp(28px, 5vw, 54px); }
+  .word { display: inline-block; padding: 0 .12em; margin: .06em .04em; border-radius: .14em; transition: background .12s, color .12s, transform .12s; }
+  .word.done { color: var(--hl); }
+  .word.next { background: var(--hl); color: #fff; transform: rotate(-1.5deg); }
+  .word.pulse { animation: pulse .18s ease-out; }
+  @keyframes pulse { from { transform: scale(1.18) rotate(-1.5deg); } }
+  .hint { color: var(--dim); font-size: 14px; }
+
+  footer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 14px 22px; border-top: 1px solid rgba(255,255,255,.06); background: var(--panel); font-size: 13px; }
+  kbd { font: 600 11px var(--ui); padding: 3px 6px; border-radius: 5px; background: rgba(255,255,255,.1); border-bottom: 1px solid rgba(255,255,255,.18); }
+  .keys { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--dim); flex: 1; }
+  label { display: flex; align-items: center; gap: 8px; color: var(--dim); }
+  input[type=range] { accent-color: var(--hl); width: 110px; }
+  button { font: 600 13px var(--ui); border: 0; border-radius: 9px; padding: 9px 14px; cursor: pointer; color: var(--text); background: rgba(255,255,255,.08); }
+  button:hover { background: rgba(255,255,255,.14); }
+  button.primary { background: var(--hl); color: #fff; }
+  button:disabled { opacity: .4; cursor: default; }
+  .toast { position: fixed; left: 50%; top: 18px; transform: translate(-50%, -10px); background: #fff; color: #111; font-weight: 600; font-size: 13px; padding: 9px 14px; border-radius: 10px; opacity: 0; transition: .25s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+  <header>
+    <div class="meta">
+      <div class="title" id="title">Waiting for a song…</div>
+      <div class="artist" id="artist"></div>
+    </div>
+    <span class="badge" id="badge">—</span>
+    <span class="clock" id="clock">0:00.0</span>
+  </header>
+
+  <main id="stage">
+    <div class="counter" id="counter"></div>
+    <div class="line prev" id="prev"></div>
+    <div class="line cur" id="cur"></div>
+    <div class="line next" id="next"></div>
+    <div class="hint" id="hint">Tap <kbd>Space</kbd> or click each time a word is sung.</div>
+  </main>
+
+  <footer>
+    <div class="keys">
+      <span><kbd>Space</kbd> tap word</span>
+      <span><kbd>Backspace</kbd> undo</span>
+      <span><kbd>↓</kbd> skip line</span>
+      <span><kbd>Home</kbd> jump to now</span>
+    </div>
+    <label title="Taps usually land a little after the word starts; this shifts them earlier.">
+      Reaction <input type="range" id="react" min="0" max="300" step="10" value="120"> <span id="reactVal">120 ms</span>
+    </label>
+    <button id="btnReset" title="Forget your taps for this song">Reset to source</button>
+    <button class="primary" id="btnSave" disabled>Save</button>
+  </footer>
+  <div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const api = () => (window.pywebview && window.pywebview.api) || null;
+
+  let lines = [];          // [{text, start_time, words:[{text, start_time, tapped}]}]
+  let li = 0, wi = 0;      // next word to tap
+  let history = [];        // [{li, wi, prev}] for undo
+  let trackKey = '';
+  let version = -1;
+  let basePos = 0, baseTime = performance.now(), playing = false;
+  let reactMs = 120;
+
+  const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60); return `${m}:${(t % 60).toFixed(1).padStart(4, '0')}`; };
+  const now = () => basePos + (playing ? (performance.now() - baseTime) / 1000 : 0);
+  const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  function tappedCount() { return lines.reduce((n, l) => n + l.words.filter(w => w.tapped).length, 0); }
+
+  function jumpToNow() {
+    const p = now();
+    // lyrics without any timing (pasted text): start at the first line you haven't tapped
+    if (lines.length && lines.every(l => !l.start_time)) {
+      li = Math.max(0, lines.findIndex(l => !l.words.some(w => w.tapped)));
+      wi = 0; render(); return;
+    }
+    let target = lines.findIndex(l => l.start_time > p - 0.4);
+    if (target < 0) target = Math.max(0, lines.length - 1);
+    // if we're inside a line that hasn't started its first word yet, start there
+    li = target; wi = 0;
+    render();
+  }
+
+  function render() {
+    const line = lines[li];
+    $('counter').textContent = lines.length ? `Line ${Math.min(li + 1, lines.length)} of ${lines.length}` : '';
+    $('prev').textContent = li > 0 ? lines[li - 1].text : '';
+    $('next').textContent = li + 1 < lines.length ? lines[li + 1].text : '';
+    if (!line) {
+      $('cur').innerHTML = lines.length ? 'All done — press <b>Save</b>.' : 'No synced lyrics for this song yet.';
+    } else {
+      $('cur').innerHTML = line.words.map((w, k) =>
+        `<span class="word ${k < wi ? 'done' : ''} ${k === wi ? 'next' : ''}" data-k="${k}">${esc(w.text)}</span>`).join(' ');
+    }
+    $('btnSave').disabled = tappedCount() === 0;
+  }
+
+  function tap() {
+    const line = lines[li];
+    if (!line) return;
+    const t = Math.max(0, now() - reactMs / 1000);
+    const w = line.words[wi];
+    history.push({ li, wi, prev: { start_time: w.start_time, tapped: !!w.tapped, line_start: line.start_time } });
+    w.start_time = t;
+    w.tapped = true;
+    if (wi === 0) line.start_time = t;
+    wi++;
+    if (wi >= line.words.length) { li++; wi = 0; }
+    render();
+    const el = document.querySelector('.word.done:last-of-type, .word.next');
+    if (el) { el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
+  }
+
+  function undo() {
+    const h = history.pop();
+    if (!h) return;
+    li = h.li; wi = h.wi;
+    const line = lines[li];
+    line.words[wi].start_time = h.prev.start_time;
+    line.words[wi].tapped = h.prev.tapped;
+    line.start_time = h.prev.line_start;
+    render();
+  }
+
+  function skipLine() {
+    if (li < lines.length) { li++; wi = 0; render(); }
+  }
+
+  async function save() {
+    const a = api();
+    if (!a || tappedCount() === 0) return;
+    const ok = await a.save_word_timings(lines);
+    if (ok) {
+      toast(`Saved ${tappedCount()} tapped words`);
+      $('badge').textContent = 'Your taps'; $('badge').className = 'badge tapped';
+      history = [];
+    } else toast('Could not save — is the song still playing?');
+  }
+
+  async function reset() {
+    const a = api();
+    if (!a) return;
+    if (!confirm('Forget your tapped timings for this song?')) return;
+    await a.reset_word_timings();
+    version = -1;   // reload on next poll
+    toast('Back to the source lyrics');
+  }
+
+  function loadState(st) {
+    const t = st.track || {};
+    const key = (t.artist || '') + ' - ' + (t.title || '');
+    $('title').textContent = t.title || 'Waiting for a song…';
+    $('artist').textContent = t.artist || '';
+    if (st.palette && st.palette.highlight) document.documentElement.style.setProperty('--hl', st.palette.highlight);
+    const doc = st.lyrics || {};
+    const src = (doc.source || '').toLowerCase();
+    $('badge').textContent = src === 'tapped' ? 'Your taps' : doc.has_word_sync ? 'Word timing from source' : doc.is_synced ? 'Estimated word timing' : 'No timing yet — tap every word';
+    $('badge').className = 'badge' + (src === 'tapped' ? ' tapped' : '');
+    // only reset the tapping session when the song changes
+    if (key !== trackKey) {
+      trackKey = key;
+      lines = (doc.lines || []).filter(l => l.words && l.words.length).map(l => ({
+        text: l.text, start_time: l.start_time,
+        words: l.words.map(w => ({ text: w.text, start_time: w.start_time, tapped: false })),
+      }));
+      history = [];
+      jumpToNow();
+    }
+    render();
+  }
+
+  async function poll() {
+    const a = api();
+    if (!a) return;
+    try {
+      const pb = await a.get_playback();
+      if (pb.version !== version) {
+        const st = await a.get_state();
+        version = st.version;
+        loadState(st);
+      }
+      const drift = pb.position - now();
+      if (!playing || pb.status !== 'PLAYING' || Math.abs(drift) > 0.5) basePos = pb.position;
+      else basePos = now() + drift * 0.15;
+      baseTime = performance.now();
+      playing = pb.status === 'PLAYING';
+    } catch (_) {}
+  }
+
+  (function clock() { $('clock').textContent = fmt(now()); requestAnimationFrame(clock); })();
+
+  $('stage').addEventListener('click', tap);
+  $('btnSave').addEventListener('click', save);
+  $('btnReset').addEventListener('click', reset);
+  $('react').addEventListener('input', e => { reactMs = +e.target.value; $('reactVal').textContent = reactMs + ' ms'; });
+  addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); tap(); }
+    else if (e.key === 'Backspace') { e.preventDefault(); undo(); }
+    else if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); skipLine(); }
+    else if (e.key === 'Home') { e.preventDefault(); jumpToNow(); }
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
+  });
+  addEventListener('pywebviewready', () => { poll(); setInterval(poll, 100); });
+})();
+</script>
+
+<script>
+  // unexpected errors go to the app log
+  (function () {
+    const report = m => { try { const a = window.pywebview && window.pywebview.api; if (a && a.report_error) a.report_error('sync: ' + m); } catch (_) {} };
+    addEventListener('error', e => report(e.message));
+    addEventListener('unhandledrejection', e => report(String(e.reason)));
+  })();
+</script>
+</body>
+</html>

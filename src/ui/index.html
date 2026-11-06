@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WordPulse</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="mode-fullscreen style-ship" id="appBody">
+
+  <!-- Convex lens filter (displacement map generated in app.js) -->
+  <svg class="lens-defs" width="0" height="0" aria-hidden="true">
+    <filter id="lensFilter" x="0" y="0" width="1" height="1"
+            filterUnits="objectBoundingBox" primitiveUnits="objectBoundingBox"
+            color-interpolation-filters="sRGB">
+      <feImage id="lensMap" x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map"/>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="0.17"
+                         xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <!-- Ink / clay morph: blur, then harden the alpha back into solid shapes -->
+    <filter id="gooFilter" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur id="gooBlur" in="SourceGraphic" stdDeviation="0" result="b"/>
+      <feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8"/>
+    </filter>
+  </svg>
+
+  <div class="bg-wall" aria-hidden="true"></div>
+  <div class="bg-art" aria-hidden="true"></div>
+
+  <main class="stage" id="stage">
+    <div class="lens" id="lens">
+      <div class="drift" id="drift">
+        <div class="stack" id="stack" aria-live="polite"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Auto-hiding control strip (appears on mouse move) -->
+  <div class="chrome" id="chrome">
+    <div class="now-playing">
+      <img id="albumArt" class="art" alt="">
+      <div class="meta">
+        <div class="title" id="trackTitle">Waiting for music</div>
+        <div class="artist" id="trackArtist">Play something in Spotify or Apple Music</div>
+      </div>
+    </div>
+
+    <div class="styles" role="tablist">
+      <button class="seg active" data-style="SHIP">Ship</button>
+      <button class="seg" data-style="FISHEYE">Fisheye</button>
+      <button class="seg" data-style="FISHEYE_VISUAL">Fisheye Visual</button>
+      <button class="seg" data-style="VISUAL">Visual</button>
+      <button class="seg" data-style="POP">Pop</button>
+      <button class="seg" data-style="STAMP">Stamp</button>
+      <button class="seg" data-style="LINE">Line</button>
+      <button class="seg" data-style="ORBIT">Orbit</button>
+      <button class="seg" data-style="INKBLOT">Inkblot</button>
+      <button class="seg" data-style="SQUEEZE">Squeeze</button>
+      <button class="seg" data-style="REMOLD">Remold</button>
+    </div>
+
+    <div class="actions">
+      <button class="act" id="btnPinToggle" title="Always on top (T)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5"/><path d="M5 17h14v-2l-3-3V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v7l-3 3z"/></svg>
+      </button>
+      <button class="act" id="btnModeToggle" title="Lock screen / desktop (F11)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+      </button>
+      <button class="act" id="btnDemoToggle" title="Demo tracks (D)"><span id="demoBadge">LIVE</span></button>
+    </div>
+
+    <div class="progress" id="progressBarWrap"><div class="fill" id="progressFill"></div></div>
+  </div>
+
+  <script src="util.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

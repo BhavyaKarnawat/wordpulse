@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+build/
+dist/
+assets/*.ico
+.claude/
+tests/test_cache*/

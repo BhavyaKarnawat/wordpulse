@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welcome to WordPulse</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --hl: #ff2d6f; --bg: #0e0e11; --card: #18181d; --line: rgba(255,255,255,.08);
+    --text: #f2f2f4; --dim: rgba(242,242,244,.6);
+    --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    --display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font: 14px/1.5 var(--ui); }
+  body { display: flex; flex-direction: column; padding: 26px 32px 22px; gap: 16px; overflow: hidden; }
+  .hero { display: flex; align-items: center; gap: 14px; }
+  .hero h1 { font: 800 28px var(--display); letter-spacing: -.03em; }
+  .hero em { font-style: normal; background: var(--hl); color: #fff; padding: 0 .16em; clip-path: polygon(0 9%, 100% 0, 99% 100%, 1% 93%); }
+  p.lead { color: var(--dim); font-size: 15px; }
+  ul { list-style: none; display: grid; gap: 10px; }
+  li { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+  li b { display: block; }
+  li span.d { color: var(--dim); font-size: 13px; }
+  .ic { width: 28px; height: 28px; border-radius: 8px; background: color-mix(in oklab, var(--hl) 22%, transparent); color: var(--hl); display: grid; place-items: center; font-weight: 800; }
+  kbd { font: 600 11.5px var(--ui); padding: 1px 6px; border-radius: 5px; background: rgba(255,255,255,.1); border-bottom: 1px solid rgba(255,255,255,.2); }
+  .spacer { flex: 1; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  button { font: 600 13.5px var(--ui); border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; color: var(--text); background: rgba(255,255,255,.09); }
+  button:hover { background: rgba(255,255,255,.15); }
+  button.primary { background: var(--hl); color: #fff; }
+  button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+</style>
+</head>
+<body>
+  <div class="hero"><h1>Lyrics, <em>word by word</em></h1></div>
+  <p class="lead">WordPulse lights up the lyrics of whatever you play, one word at a time, right on your desktop behind your icons.</p>
+  <ul>
+    <li><div class="ic">1</div><div><b>Just press play</b><span class="d">Spotify, Apple Music, YouTube Music, Tidal or a browser. No login needed.</span></div></li>
+    <li><div class="ic">2</div><div><b>It lives in the tray</b><span class="d">Click the tray icon (by the clock) for settings: 11 styles, colours, position, mood and more.</span></div></li>
+    <li><div class="ic">3</div><div><b>Shortcuts that work anywhere</b><span class="d"><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>L</kbd> hide or show · <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> next style · <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> nudge timing</span></div></li>
+    <li><div class="ic">4</div><div><b>Words a bit off?</b><span class="d">Tray › Sync Words for This Song lets you tap along for perfect timing. It's remembered.</span></div></li>
+  </ul>
+  <div class="spacer"></div>
+  <div class="actions">
+    <button id="demo">Try the demo songs</button>
+    <button id="settings">Open settings</button>
+    <button class="primary" id="done" autofocus>Got it</button>
+  </div>
+<script>
+  const api = () => (window.pywebview && window.pywebview.api) || null;
+  const act = name => { const a = api(); if (a) a.welcome_action(name); };
+  document.getElementById('done').addEventListener('click', () => act('done'));
+  document.getElementById('settings').addEventListener('click', () => act('settings'));
+  document.getElementById('demo').addEventListener('click', () => act('demo'));
+  addEventListener('keydown', e => { if (e.key === 'Escape') act('done'); });
+</script>
+
+<script>
+  // unexpected errors go to the app log
+  (function () {
+    const report = m => { try { const a = window.pywebview && window.pywebview.api; if (a && a.report_error) a.report_error('welcome: ' + m); } catch (_) {} };
+    addEventListener('error', e => report(e.message));
+    addEventListener('unhandledrejection', e => report(String(e.reason)));
+  })();
+</script>
+</body>
+</html>

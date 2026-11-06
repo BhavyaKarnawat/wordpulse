@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WordPulse Settings</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --hl: #ff2d6f;
+    --bg: #0e0e11;
+    --side: #131317;
+    --card: #18181d;
+    --line: rgba(255,255,255,.07);
+    --text: #f2f2f4;
+    --dim: rgba(242,242,244,.55);
+    --faint: rgba(242,242,244,.32);
+    --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    --display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 var(--ui); }
+  body { display: grid; grid-template-columns: 190px 1fr; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+
+  nav { background: var(--side); border-right: 1px solid var(--line); padding: 18px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .brand { font: 800 18px var(--display); letter-spacing: -.02em; padding: 0 10px 16px; display: flex; align-items: center; gap: 8px; }
+  .brand i { width: 22px; height: 14px; background: var(--hl); clip-path: polygon(0 9%, 100% 0, 99% 100%, 1% 93%); display: inline-block; }
+  nav button { text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 8px; color: var(--dim); cursor: pointer; }
+  nav button:hover { background: rgba(255,255,255,.05); color: var(--text); }
+  nav button.on { background: rgba(255,255,255,.08); color: var(--text); font-weight: 600; }
+  nav .spacer { flex: 1; }
+  .ver { color: var(--faint); font-size: 12px; padding: 0 12px; }
+
+  main { overflow: auto; padding: 26px 30px 90px; }
+  section { display: none; max-width: 640px; }
+  section.on { display: block; }
+  h1 { font: 700 22px var(--display); letter-spacing: -.01em; margin-bottom: 4px; }
+  .lead { color: var(--dim); margin-bottom: 22px; }
+  h2 { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin: 26px 0 10px; }
+
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row .lbl { min-width: 0; }
+  .row .lbl b { display: block; font-weight: 600; }
+  .row .lbl span { color: var(--dim); font-size: 12.5px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 2px 16px; }
+
+  /* switch */
+  .sw { position: relative; width: 40px; height: 22px; flex: none; }
+  .sw input { opacity: 0; width: 100%; height: 100%; position: absolute; cursor: pointer; margin: 0; }
+  .sw i { position: absolute; inset: 0; border-radius: 999px; background: rgba(255,255,255,.16); transition: background .15s; pointer-events: none; }
+  .sw i::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .18s; }
+  .sw input:checked + i { background: var(--hl); }
+  .sw input:checked + i::after { transform: translateX(18px); }
+  .sw input:focus-visible + i { outline: 2px solid #fff; outline-offset: 2px; }
+
+  select, input[type=text], textarea { background: #222228; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 190px; }
+  select:focus, input[type=text]:focus, textarea:focus { outline: 2px solid var(--hl); outline-offset: -1px; }
+  input[type=range] { accent-color: var(--hl); width: 190px; }
+  input[type=color] { width: 40px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; cursor: pointer; }
+  .val { color: var(--dim); font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; display: inline-block; }
+  .btn { border: 0; border-radius: 9px; padding: 8px 14px; background: rgba(255,255,255,.09); cursor: pointer; font-weight: 600; white-space: nowrap; }
+  .btn:hover { background: rgba(255,255,255,.15); }
+  .btn.primary { background: var(--hl); color: #fff; }
+  .btn:disabled { opacity: .4; cursor: default; }
+
+  /* style cards */
+  .styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+  .style { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 12px; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+  .style:hover { border-color: rgba(255,255,255,.2); }
+  .style.on { border-color: var(--hl); box-shadow: 0 0 0 1px var(--hl) inset; }
+  .style .demo { height: 34px; display: grid; place-items: center; font: 800 17px var(--display); letter-spacing: -.03em; }
+  .style .demo em { font-style: normal; background: var(--hl); color: #fff; padding: 0 .15em; clip-path: polygon(0 9%, 100% 0, 99% 100%, 1% 93%); }
+  .style label { display: flex; align-items: center; gap: 6px; color: var(--dim); font-size: 12px; }
+  .style input[type=checkbox] { accent-color: var(--hl); }
+  .pool-off .style label { display: none; }
+
+  /* position picker */
+  .pos { display: grid; grid-template-columns: repeat(3, 34px); gap: 6px; }
+  .pos button { width: 34px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: #222228; cursor: pointer; position: relative; }
+  .pos button::after { content: ""; position: absolute; width: 10px; height: 5px; background: var(--faint); border-radius: 2px; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  .pos button.on { border-color: var(--hl); }
+  .pos button.on::after { background: var(--hl); }
+  .pos button.blank { visibility: hidden; }
+
+  .seg { display: inline-flex; background: #222228; border-radius: 9px; padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: none; padding: 6px 12px; border-radius: 7px; cursor: pointer; color: var(--dim); }
+  .seg button.on { background: var(--hl); color: #fff; }
+
+  .song { display: flex; align-items: center; gap: 14px; }
+  .song .t { font: 700 17px var(--display); }
+  .song .a { color: var(--dim); }
+  .badge { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--dim); }
+  .badge.good { background: color-mix(in oklab, var(--hl) 22%, transparent); color: var(--hl); }
+  .results { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; }
+  .result { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+  .result .m { flex: 1; min-width: 0; }
+  .result .m b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .result .m span { color: var(--dim); font-size: 12px; }
+  textarea { width: 100%; min-height: 110px; resize: vertical; margin-top: 8px; }
+  .note { color: var(--dim); font-size: 12.5px; margin-top: 8px; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; }
+  kbd { font: 600 12px var(--ui); padding: 2px 7px; border-radius: 5px; background: rgba(255,255,255,.1); border-bottom: 1px solid rgba(255,255,255,.2); white-space: nowrap; }
+  .warn { color: #ffb86b; }
+  .beatbar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.07); margin-top: 12px; overflow: hidden; }
+  .beatbar i { display: block; height: 100%; width: 100%; background: var(--hl); transform-origin: left; transform: scaleX(0); }
+
+  footer { position: fixed; left: 190px; right: 0; bottom: 0; display: flex; gap: 10px; align-items: center; justify-content: flex-end;
+           padding: 12px 22px; background: color-mix(in oklab, var(--bg) 92%, transparent); border-top: 1px solid var(--line); backdrop-filter: blur(8px); }
+  .saved { color: var(--dim); font-size: 12.5px; opacity: 0; transition: opacity .3s; }
+  .saved.show { opacity: 1; }
+  .saved.err { color: #ffb86b; }
+  .disabled { opacity: .45; pointer-events: none; }
+  :is(button, select, input, textarea, .style, label.btn):focus-visible { outline: 2px solid var(--hl); outline-offset: 2px; }
+  .sw input:focus-visible + i { outline: 2px solid var(--hl); outline-offset: 2px; }
+  nav button:focus-visible { outline-offset: -2px; }
+  .skip { position: absolute; left: -999px; }
+  .skip:focus { left: 200px; top: 8px; z-index: 9; background: var(--hl); color: #fff; padding: 6px 10px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<a class="skip" href="#display">Skip to settings</a>
+<nav role="tablist" aria-orientation="vertical" aria-label="Settings sections">
+  <div class="brand"><i></i>WordPulse</div>
+  <button data-tab="display" class="on">Display</button>
+  <button data-tab="look">Look</button>
+  <button data-tab="motion">Motion</button>
+  <button data-tab="mood">Mood</button>
+  <button data-tab="behaviour">Behaviour</button>
+  <button data-tab="song">This song</button>
+  <button data-tab="about">About</button>
+  <div class="spacer"></div>
+  <div class="ver" id="ver"></div>
+</nav>
+
+<main>
+  <!-- DISPLAY -->
+  <section id="display" class="on">
+    <h1>Display</h1>
+    <p class="lead">How and where the lyrics appear.</p>
+
+    <h2>Style</h2>
+    <div class="styles" id="styles"></div>
+    <div class="card" style="margin-top:10px">
+      <div class="row">
+        <div class="lbl"><b>Shuffle styles</b><span>Pick a random style from the ticked ones.</span></div>
+        <div class="seg" data-setting="shuffle">
+          <button data-v="off">Off</button><button data-v="song">Each song</button><button data-v="line">Each line</button>
+        </div>
+      </div>
+    </div>
+
+    <h2>Placement</h2>
+    <div class="card">
+      <div class="row">
+        <div class="lbl"><b>Mode</b><span>On the desktop sits behind your icons.</span></div>
+        <select data-setting="display_mode">
+          <option value="DESKTOP_WALLPAPER">On the desktop</option>
+          <option value="FULLSCREEN_AMBIENT">Fullscreen</option>
+          <option value="DESKTOP_OVERLAY">Floating window</option>
+        </select>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Monitor</b></div>
+        <select data-setting="monitor" data-number id="monitors"></select>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Position</b><span>Where the sung word sits.</span></div>
+        <div class="pos" id="pos">
+          <button data-p="top-left" title="Top left"></button><button data-p="top" title="Top"></button><button data-p="top-right" title="Top right"></button>
+          <button class="blank"></button><button data-p="center" title="Centre"></button><button class="blank"></button>
+          <button data-p="bottom-left" title="Bottom left"></button><button data-p="bottom" title="Bottom"></button><button data-p="bottom-right" title="Bottom right"></button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Custom position</b><span>Fine-tune across and down the screen.</span></div>
+        <div>
+          <div><input type="range" min="0.1" max="0.9" step="0.01" data-setting="custom_x" data-number data-custom-pos> <span class="val" data-show="custom_x" data-fmt="pct"></span></div>
+          <div><input type="range" min="0.1" max="0.9" step="0.01" data-setting="custom_y" data-number data-custom-pos> <span class="val" data-show="custom_y" data-fmt="pct"></span></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Size</b></div>
+        <div><input type="range" min="0.4" max="1.8" step="0.05" data-setting="font_scale" data-number> <span class="val" data-show="font_scale" data-fmt="x"></span></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Maximum width</b><span>How wide a long word may get.</span></div>
+        <div><input type="range" min="30" max="95" step="1" data-setting="max_width_pct" data-number> <span class="val" data-show="max_width_pct" data-fmt="%"></span></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Keep floating window on top</b></div>
+        <label class="sw"><input type="checkbox" data-setting="always_on_top"><i></i></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOOK -->
+  <section id="look">
+    <h1>Look</h1>
+    <p class="lead">Colours, type and the background.</p>
+    <h2>Colour</h2>
+    <div class="card">
+      <div class="row">
+        <div class="lbl"><b>Auto Sync</b><span>Take the colours from the album art.</span></div>
+        <label class="sw"><input type="checkbox" data-setting="auto_theme"><i></i></label>
+      </div>
+      <div class="row" data-manual>
+        <div class="lbl"><b>Lyric text</b></div><input type="color" data-setting="lyric_color" aria-label="Lyric text colour">
+      </div>
+      <div class="row" data-manual>
+        <div class="lbl"><b>Highlight</b><span>The slab behind the sung word.</span></div><input type="color" data-setting="highlight_color" aria-label="Highlight colour">
+      </div>
+      <div class="row" data-manual>
+        <div class="lbl"><b>Secondary text</b><span>Upcoming words.</span></div><input type="color" data-setting="secondary_color" aria-label="Secondary text colour">
+      </div>
+    </div>
+    <h2>Type</h2>
+    <div class="card">
+      <div class="row"><div class="lbl"><b>Font</b></div><select data-setting="font_family" id="fonts"></select></div>
+      <div class="row"><div class="lbl"><b>All caps</b></div><label class="sw"><input type="checkbox" data-setting="uppercase"><i></i></label></div>
+      <div class="row">
+        <div class="lbl"><b>Highlight shape</b></div>
+        <div class="seg" data-setting="slab_shape"><button data-v="sharp">Slab</button><button data-v="pill">Pill</button><button data-v="none">None</button></div>
+      </div>
+    </div>
+    <h2>Desktop background</h2>
+    <div class="card">
+      <div class="row">
+        <div class="lbl"><b>Dim the wallpaper</b><span>While lyrics are showing.</span></div>
+        <div><input type="range" min="0" max="0.8" step="0.05" data-setting="wall_dim" data-number> <span class="val" data-show="wall_dim" data-fmt="pct"></span></div>
+      </div>
+      <div class="row"><div class="lbl"><b>Blur the wallpaper</b></div><label class="sw"><input type="checkbox" data-setting="wall_blur"><i></i></label></div>
+      <div class="row"><div class="lbl"><b>Album art background</b><span>Blurred cover art behind the words while a song plays.</span></div><label class="sw"><input type="checkbox" data-setting="album_background"><i></i></label></div>
+      <div class="row">
+        <div class="lbl"><b>Fullscreen and screensaver background</b></div>
+        <div class="seg" data-setting="fullscreen_bg"><button data-v="black">Black</button><button data-v="wallpaper">Wallpaper</button><button data-v="album">Album art</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MOTION -->
+  <section id="motion">
+    <h1>Motion</h1>
+    <p class="lead">How lively the animation is.</p>
+    <div class="card">
+      <div class="row">
+        <div class="lbl"><b>Motion</b><span>Calm to lively.</span></div>
+        <div><input type="range" min="0.3" max="1.5" step="0.05" data-setting="motion" data-number> <span class="val" data-show="motion" data-fmt="x"></span></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Reduce motion</b><span>Simple fades instead of movement.</span></div>
+        <div class="seg" data-setting="reduce_motion"><button data-v="system">Follow Windows</button><button data-v="on">On</button><button data-v="off">Off</button></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Battery saver</b><span>Turn off the lens and ink effects on battery.</span></div>
+        <label class="sw"><input type="checkbox" data-setting="battery_saver"><i></i></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- MOOD -->
+  <section id="mood">
+    <h1>Mood</h1>
+    <p class="lead">WordPulse listens to the beat and reads the song's speed and genre, then picks a look to match.</p>
+    <div class="card" style="padding:14px 16px">
+      <div class="song">
+        <div style="flex:1;min-width:0">
+          <div class="t" id="moodNow">—</div>
+          <div class="a" id="moodWhy">Play something to see its mood.</div>
+        </div>
+        <span class="badge" id="moodBpm">— BPM</span>
+      </div>
+      <div class="beatbar" aria-hidden="true"><i id="beatDot"></i></div>
+      <p class="note" id="audioNote"></p>
+    </div>
+
+    <h2>Automatic mood</h2>
+    <div class="card">
+      <div class="row">
+        <div class="lbl"><b>Use mood</b><span>Beat effects pulse with the music. Full also picks the style and colours.</span></div>
+        <div class="seg" data-setting="auto_mood"><button data-v="off">Off</button><button data-v="beats">Beat effects</button><button data-v="full">Full</button></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Beat strength</b></div>
+        <div><input type="range" min="0" max="1.5" step="0.05" data-setting="beat_strength" data-number> <span class="val" data-show="beat_strength" data-fmt="x"></span></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>This song</b><span>Wrong guess? Pick its mood; it's remembered.</span></div>
+        <select id="songMood"></select>
+      </div>
+    </div>
+
+    <h2>Style for each mood</h2>
+    <div class="card" id="moodStyles"></div>
+    <p class="note">Mood styles take over from your chosen style while Full is on, unless Shuffle is on. Audio is analysed on this PC only and never saved or sent anywhere.</p>
+  </section>
+
+  <!-- BEHAVIOUR -->
+  <section id="behaviour">
+    <h1>Behaviour</h1>
+    <p class="lead">When the lyrics show, and what they follow.</p>
+    <h2>Startup and power</h2>
+    <div class="card">
+      <div class="row"><div class="lbl"><b>Start with Windows</b></div><label class="sw"><input type="checkbox" data-setting="start_with_windows"><i></i></label></div>
+      <div class="row"><div class="lbl"><b>Keep the display awake</b><span>While music plays.</span></div><label class="sw"><input type="checkbox" data-setting="keep_awake"><i></i></label></div>
+    </div>
+    <h2>Getting out of the way</h2>
+    <div class="card">
+      <div class="row"><div class="lbl"><b>Hide during games and fullscreen video</b></div><label class="sw"><input type="checkbox" data-setting="hide_on_fullscreen"><i></i></label></div>
+      <div class="row">
+        <div class="lbl"><b>Hide when paused</b></div>
+        <select data-setting="hide_when_paused_s" data-number>
+          <option value="0">Never</option><option value="10">After 10 seconds</option><option value="30">After 30 seconds</option>
+          <option value="60">After 1 minute</option><option value="300">After 5 minutes</option>
+        </select>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Keyboard shortcuts</b><span id="hkNote">Work anywhere in Windows.</span></div>
+        <label class="sw"><input type="checkbox" data-setting="hotkeys_enabled"><i></i></label>
+      </div>
+      <div class="row" style="display:block">
+        <div class="keys" id="keys"></div>
+      </div>
+    </div>
+    <h2>Music</h2>
+    <div class="card">
+      <div class="row">
+        <div class="lbl"><b>Follow</b><span>Which app to take lyrics from when several are playing.</span></div>
+        <select data-setting="preferred_player" id="players"></select>
+      </div>
+      <div class="row"><div class="lbl"><b>Ignore browsers</b><span>Skip YouTube and other videos in Chrome, Edge, Firefox…</span></div><label class="sw"><input type="checkbox" data-setting="ignore_browsers"><i></i></label></div>
+      <div class="row">
+        <div class="lbl"><b>Timing for all songs</b><span>Positive shows words later.</span></div>
+        <div><input type="range" min="-1500" max="1500" step="50" data-setting="timing_offset_ms" data-number> <span class="val" data-show="timing_offset_ms" data-fmt="ms"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- THIS SONG -->
+  <section id="song">
+    <h1>This song</h1>
+    <p class="lead">Fix timing or lyrics for what's playing now.</p>
+    <div class="card" style="padding:14px 16px">
+      <div class="song">
+        <div style="flex:1;min-width:0"><div class="t" id="songTitle">Nothing playing</div><div class="a" id="songArtist"></div></div>
+        <span class="badge" id="songBadge">—</span>
+      </div>
+    </div>
+    <h2>Timing</h2>
+    <div class="card">
+      <div class="row">
+        <div class="lbl"><b>Offset for this song</b><span>Remembered next time it plays. Shortcut: Ctrl+Alt+← / →</span></div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn" data-off="-100">−100</button><span class="val" id="songOff">0 ms</span><button class="btn" data-off="100">+100</button>
+          <button class="btn" id="offReset">Reset</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Tap to sync</b><span>Tap Space along with the song for exact word timing.</span></div>
+        <button class="btn primary" id="openSync">Open sync window</button>
+      </div>
+    </div>
+    <h2>Wrong lyrics?</h2>
+    <div class="card" style="padding:14px 16px">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="q" placeholder="Search another version (leave empty for this song)" style="flex:1">
+        <button class="btn" id="search">Search</button>
+      </div>
+      <div class="results" id="results"></div>
+      <p class="note">Choosing a version replaces the lyrics for this song and clears any taps.</p>
+    </div>
+    <h2>Use your own</h2>
+    <div class="card" style="padding:14px 16px">
+      <div style="display:flex;gap:8px;align-items:center">
+        <label class="btn" for="file">Open .lrc file…</label>
+        <input type="file" id="file" accept=".lrc,.txt" hidden>
+        <span class="note" style="margin:0">or paste lyrics below. Plain text works too; tap-sync it afterwards.</span>
+      </div>
+      <textarea id="paste" placeholder="[00:12.30] First line&#10;[00:15.10] Second line&#10;…or plain lines without times"></textarea>
+      <div style="margin-top:8px;text-align:right"><button class="btn primary" id="importBtn">Use these lyrics</button></div>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section id="about">
+    <h1>About</h1>
+    <p class="lead" id="aboutLead"></p>
+    <div class="card">
+      <div class="row">
+        <div class="lbl"><b>Release page</b><span>Your GitHub repo (owner/name), if you publish releases.</span></div>
+        <input type="text" data-setting="update_repo" placeholder="owner/wordpulse">
+      </div>
+      <div class="row"><div class="lbl"><b>Check for updates automatically</b><span>Once a day, with a tray notification.</span></div><label class="sw"><input type="checkbox" data-setting="check_updates"><i></i></label></div>
+      <div class="row">
+        <div class="lbl"><b>Check now</b><span id="updResult"></span></div>
+        <button class="btn" id="checkUpd">Check</button>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Logs</b><span id="logDir"></span></div>
+        <button class="btn" id="openLogs">Open folder</button>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Quit WordPulse</b><span>Closes the lyrics and the tray icon.</span></div>
+        <button class="btn" id="quitApp">Quit</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span class="saved" id="saved">Saved</span>
+  <button class="btn primary" id="done">Done</button>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const $$ = sel => [...document.querySelectorAll(sel)];
+  const api = () => (window.pywebview && window.pywebview.api) || null;
+  let S = {}, R = {}, M = {};
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmt = (v, f) => f === 'pct' ? Math.round(v * 100) + '%' : f === 'x' ? (+v).toFixed(2) + '×' : f === '%' ? v + '%' : f === 'ms' ? (v > 0 ? '+' : '') + v + ' ms' : v;
+
+  // tabs (click, or Up/Down/Home/End when a tab has focus)
+  const tabs = $$('nav button[data-tab]');
+  function openTab(b, focus) {
+    tabs.forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', x === b); x.tabIndex = x === b ? 0 : -1; });
+    $$('section').forEach(s => s.classList.toggle('on', s.id === b.dataset.tab));
+    if (focus) b.focus();
+    if (b.dataset.tab === 'song') refresh();
+  }
+  tabs.forEach((b, i) => {
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-controls', b.dataset.tab);
+    b.addEventListener('click', () => openTab(b));
+    b.addEventListener('keydown', e => {
+      const n = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+      if (n === undefined) return;
+      e.preventDefault();
+      openTab(tabs[(n + tabs.length) % tabs.length], true);
+    });
+  });
+  $$('section').forEach(sec => { sec.setAttribute('role', 'tabpanel'); sec.tabIndex = -1; });
+  openTab(tabs[0]);
+
+  let savedTimer;
+  function flashSaved() {
+    $('saved').classList.add('show');
+    clearTimeout(savedTimer); savedTimer = setTimeout(() => $('saved').classList.remove('show'), 1200);
+  }
+
+  async function set(name, value) {
+    const a = api(); if (!a) return;
+    try {
+      const res = await a.set_setting(name, value);
+      if (res && res.settings) { apply(res); flashSaved(); }
+      else if (res && res.error) showError(`Couldn't change that setting (${res.error}).`);
+    } catch (e) {
+      showError("Couldn't change that setting. Details are in the log.");
+    }
+  }
+  let errTimer;
+  function showError(msg) {
+    const el = $('saved');
+    el.textContent = msg; el.classList.add('show', 'err');
+    clearTimeout(errTimer); errTimer = setTimeout(() => { el.classList.remove('show', 'err'); el.textContent = 'Saved'; }, 4000);
+  }
+  // anything unexpected on this page goes to the log, and you get a short note
+  const report = m => { try { const a = api(); if (a && a.report_error) a.report_error('settings: ' + m); } catch (_) {} };
+  addEventListener('error', e => { report(e.message); showError('Something went wrong. Details are in the log.'); });
+  addEventListener('unhandledrejection', e => { report(String(e.reason)); showError('Something went wrong. Details are in the log.'); });
+
+  function apply(p) {
+    S = p.settings || S; R = p.runtime || R; M = p.meta || M;
+    document.documentElement.style.setProperty('--hl', S.auto_theme ? '#ff2d6f' : S.highlight_color);
+    $('ver').textContent = 'Version ' + (M.version || '');
+    $('aboutLead').textContent = `WordPulse ${M.version || ''} — word-by-word lyrics for Windows.`;
+
+    // styles
+    const styles = M.styles || [];
+    if ($('styles').childElementCount !== styles.length) {
+      $('styles').innerHTML = styles.map(st => `
+        <div class="style" data-style="${st.id}" role="button" tabindex="0">
+          <div class="demo"><em>${esc(st.label)}</em></div>
+          <label><input type="checkbox" data-pool="${st.id}"> In shuffle</label>
+        </div>`).join('');
+      $$('.style').forEach(el => {
+        el.addEventListener('click', e => { if (e.target.closest('label')) return; set('display_style', el.dataset.style); });
+        el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); set('display_style', el.dataset.style); } });
+      });
+      $$('[data-pool]').forEach(cb => cb.addEventListener('change', () => {
+        const pool = $$('[data-pool]').filter(x => x.checked).map(x => x.dataset.pool);
+        if (!pool.length) { cb.checked = true; return; }
+        set('shuffle_pool', pool);
+      }));
+    }
+    $$('.style').forEach(el => { el.classList.toggle('on', el.dataset.style === S.display_style); el.setAttribute('aria-pressed', el.dataset.style === S.display_style); });
+    $$('[data-pool]').forEach(cb => cb.checked = (S.shuffle_pool || []).includes(cb.dataset.pool));
+    $('styles').classList.toggle('pool-off', S.shuffle === 'off');
+
+    // lists
+    fill($('monitors'), (M.monitors || []).map((l, i) => [i, l]).concat((M.monitors || []).length > 1 || S.monitor === -1 ? [[-1, 'All displays (on the desktop)']] : []));
+    fill($('fonts'), (M.fonts || []).concat(M.fonts && !M.fonts.includes(S.font_family) ? [S.font_family] : []).map(f => [f, f]));
+    const players = ['auto'].concat(M.players || []);
+    if (S.preferred_player && !players.includes(S.preferred_player)) players.push(S.preferred_player);
+    fill($('players'), players.map(p => [p, p === 'auto' ? 'Whatever Windows says is playing' : p.replace(/\.exe$/i, '')]));
+
+    // generic controls
+    $$('[data-setting]').forEach(el => {
+      const k = el.dataset.setting, v = S[k];
+      if (v === undefined) return;
+      if (el.classList.contains('seg')) el.querySelectorAll('button').forEach(b => { b.classList.toggle('on', b.dataset.v === v); b.setAttribute('aria-pressed', b.dataset.v === v); });
+      else if (el.type === 'checkbox') el.checked = !!v;
+      else if (document.activeElement !== el) el.value = v;
+    });
+    $$('[data-show]').forEach(el => el.textContent = fmt(S[el.dataset.show], el.dataset.fmt));
+    $$('#pos button[data-p]').forEach(b => { b.classList.toggle('on', b.dataset.p === S.position); b.setAttribute('aria-pressed', b.dataset.p === S.position); b.setAttribute('aria-label', b.title); });
+    $$('[data-manual]').forEach(r => r.classList.toggle('disabled', !!S.auto_theme));
+
+    // hotkeys
+    $('keys').innerHTML = (M.hotkeys || []).map((k, i) => `<kbd>${esc(k)}</kbd><span>${['Show / hide lyrics', 'Next style', 'Open settings', 'Words earlier (this song)', 'Words later (this song)'][i] || ''}</span>`).join('');
+    $('hkNote').innerHTML = (M.hotkeys_failed || []).length
+      ? `<span class="warn">Taken by another app: ${esc(M.hotkeys_failed.join(', '))}</span>` : 'Work anywhere in Windows.';
+
+    // this song
+    const t = M.track, ly = M.lyrics || {};
+    $('songTitle').textContent = t ? t.title : 'Nothing playing';
+    $('songArtist').textContent = t ? t.artist : 'Play something in Spotify or another music app.';
+    const badge = ly.source === 'Tapped' ? ['Your taps', true] : ly.source === 'Loading' ? ['Finding lyrics…', false]
+      : ly.source === 'None' ? ['No lyrics found', false] : ly.source === 'Offline' ? ['Offline \u2014 will retry', false] : ly.source === 'Imported' ? ['Your lyrics', true]
+      : ly.word_sync ? ['Word timing', true] : ly.synced ? ['Estimated timing', false] : t ? ['No timing', false] : ['—', false];
+    $('songBadge').textContent = badge[0]; $('songBadge').className = 'badge' + (badge[1] ? ' good' : '');
+    $('songOff').textContent = fmt(R.song_offset_ms || 0, 'ms');
+    $$('[data-off], #offReset, #openSync, #search, #importBtn').forEach(b => b.disabled = !t);
+    $('logDir').textContent = M.log_dir || '';
+    if (M.save_failed) showError("Settings can't be saved right now (is the disk full?). They apply until you quit.");
+
+    // mood
+    const moods = M.moods || [];
+    const label = id => (moods.find(m => m.id === id) || {}).label || id;
+    $('moodNow').textContent = R.mood ? label(R.mood) : (S.auto_mood === 'off' ? 'Mood is off' : t ? 'Listening…' : '—');
+    $('moodWhy').textContent = R.mood_source === 'you' ? 'You picked this for this song.' : (R.mood_reason || (t ? 'Working it out from the first few seconds.' : 'Play something to see its mood.'));
+    const bpm = (M.beat && M.beat.bpm) || R.mood_bpm;
+    $('moodBpm').textContent = bpm ? `${Math.round(bpm)} BPM` : '— BPM';
+    const audio = R.audio || 'off';
+    $('audioNote').textContent = audio === 'listening' ? `Listening to ${M.audio_device || 'your speakers'}.`
+      : audio === 'unavailable' ? 'Beat detection is unavailable on this PC; mood uses lyrics and genre only.'
+      : audio === 'error' ? 'Could not open the audio output; retrying.'
+      : S.auto_mood === 'off' ? '' : 'Beat detection starts when music plays.';
+    fill($('songMood'), [['', 'Automatic']].concat(moods.map(m => [m.id, m.label])));
+    if (document.activeElement !== $('songMood')) $('songMood').value = M.song_mood || '';
+    $('songMood').disabled = !t;
+    const styleOpts = (M.styles || []).map(st => `<option value="${st.id}">${esc(st.label)}</option>`).join('');
+    if ($('moodStyles').childElementCount !== moods.length) {
+      $('moodStyles').innerHTML = moods.map(m => `
+        <div class="row"><div class="lbl"><b>${esc(m.label)}</b><span>${esc(MOOD_HINT[m.id] || '')}</span></div>
+        <select data-mood-style="${m.id}">${styleOpts}</select></div>`).join('');
+      $$('[data-mood-style]').forEach(sel => sel.addEventListener('change', () => {
+        set('mood_styles', Object.assign({}, S.mood_styles, { [sel.dataset.moodStyle]: sel.value }));
+      }));
+    }
+    $$('[data-mood-style]').forEach(sel => { if (document.activeElement !== sel) sel.value = (S.mood_styles || {})[sel.dataset.moodStyle]; });
+    beatPeriod = (M.beat && M.beat.period) ? M.beat.period * 1000 : 0;
+    if (M.beat && M.beat.beat_age != null) beatLast = performance.now() - M.beat.beat_age * 1000;
+  }
+  const MOOD_HINT = { NEON: 'Fast, dense or electronic: rap, drill, EDM', BRIGHT: 'Upbeat pop and dance',
+    HEAVY: 'Loud and harsh: rock, metal', SMOOTH: 'Mid-tempo R&B, soul, jazz', SOFT: 'Slow and quiet: ballads, acoustic' };
+  let beatPeriod = 0, beatLast = 0;
+  (function beatViz() {
+    const dot = $('beatDot');
+    if (dot && beatPeriod) {
+      const since = ((performance.now() - beatLast) % beatPeriod + beatPeriod) % beatPeriod;
+      dot.style.transform = `scaleX(${Math.exp(-since / 140).toFixed(3)})`;
+    }
+    requestAnimationFrame(beatViz);
+  })();
+
+  function fill(sel, items) {
+    const sig = JSON.stringify(items);
+    if (sel.dataset.sig === sig) return;
+    sel.dataset.sig = sig;
+    sel.innerHTML = items.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('');
+  }
+
+  // wire controls
+  $$('[data-setting]').forEach(el => {
+    const k = el.dataset.setting;
+    if (el.classList.contains('seg')) {
+      el.addEventListener('click', e => { const b = e.target.closest('button'); if (b) set(k, b.dataset.v); });
+      return;
+    }
+    const read = () => el.type === 'checkbox' ? el.checked : (el.dataset.number !== undefined ? +el.value : el.value);
+    if (el.type === 'range') {
+      el.addEventListener('input', () => {
+        const show = document.querySelector(`[data-show="${k}"]`); if (show) show.textContent = fmt(read(), show.dataset.fmt);
+        if (el.dataset.customPos !== undefined && S.position !== 'custom') set('position', 'custom');
+        const v = read();                     // capture now; a refresh may reset the slider before the timer fires
+        clearTimeout(el._t); el._t = setTimeout(() => set(k, v), 60);
+      });
+    } else if (el.type === 'text') {
+      el.addEventListener('change', () => set(k, read()));
+    } else {
+      el.addEventListener('change', () => set(k, read()));
+    }
+  });
+  $$('#pos button[data-p]').forEach(b => b.addEventListener('click', () => set('position', b.dataset.p)));
+
+  // this song
+  $$('[data-off]').forEach(b => b.addEventListener('click', async () => { await api().song_offset(+b.dataset.off); refresh(); }));
+  $('offReset').addEventListener('click', async () => { await api().reset_song_offset(); refresh(); });
+  $('openSync').addEventListener('click', () => api().open_sync_window());
+  $('search').addEventListener('click', async () => {
+    $('results').innerHTML = '<p class="note">Searching…</p>';
+    const list = await api().search_lyrics($('q').value);
+    $('results').innerHTML = list.length ? list.map(r => `
+      <div class="result">
+        <div class="m"><b>${esc(r.title)}</b><span>${esc(r.artist)}${r.album ? ' · ' + esc(r.album) : ''} · ${Math.floor(r.duration / 60)}:${String(Math.round(r.duration % 60)).padStart(2, '0')}</span></div>
+        <span class="badge ${r.timing === 'words' ? 'good' : ''}">${r.timing === 'words' ? 'Word timing' : r.timing === 'lines' ? 'Line timing' : r.instrumental ? 'Instrumental' : 'No timing'}</span>
+        <button class="btn" data-use="${r.id}">Use</button>
+      </div>`).join('') : '<p class="note">Nothing found. Try a different search.</p>';
+    $$('[data-use]').forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = '…';
+      const ok = await api().use_lyrics(+b.dataset.use);
+      b.textContent = ok ? 'In use' : 'Failed';
+      refresh();
+    }));
+  });
+  $('file').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    $('paste').value = await f.text();
+  });
+  $('importBtn').addEventListener('click', async () => {
+    const ok = await api().import_lyrics($('paste').value);
+    $('importBtn').textContent = ok ? 'Done ✓' : 'Nothing to import';
+    setTimeout(() => $('importBtn').textContent = 'Use these lyrics', 1500);
+    refresh();
+  });
+
+  // about
+  $('checkUpd').addEventListener('click', async () => {
+    $('updResult').textContent = 'Checking…';
+    const r = await api().check_updates();
+    $('updResult').innerHTML = r.error ? esc(r.error) : r.available ? `Version ${esc(r.latest)} is available.` : 'You have the latest version.';
+  });
+  $('openLogs').addEventListener('click', () => api().open_logs());
+  $('quitApp').addEventListener('click', () => { if (confirm('Quit WordPulse?')) api().quit_app(); });
+  $('songMood').addEventListener('change', async () => { const r = await api().set_song_mood($('songMood').value); if (r && r.settings) apply(r); });
+  $('done').addEventListener('click', () => api().close_settings());
+  addEventListener('keydown', e => { if (e.key === 'Escape') api().close_settings(); });
+
+  async function refresh() {
+    const a = api(); if (!a) return;
+    apply(await a.get_settings_payload());
+  }
+  addEventListener('pywebviewready', () => {
+    refresh();
+    setInterval(() => { if ($('mood').classList.contains('on')) refresh(); }, 1000);
+    setInterval(() => { if (!$('mood').classList.contains('on')) refresh(); }, 2000);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+/* WordPulse — word-by-word lyric stage
+   Three colours drive everything: lyric, highlight, secondary. */
+:root {
+  --hl: #ff2d6f;                                            /* highlight slab */
+  --lyric: color-mix(in oklab, var(--hl) 72%, white);       /* sung / past words */
+  --secondary: color-mix(in oklab, var(--hl) 45%, #6b6b6b); /* upcoming ghost words */
+  --bg: #000;
+  --u: min(11vw, 17vh);                                     /* base word size */
+  --font: "Segoe UI Variable Display", "Segoe UI", "Inter", system-ui, sans-serif;
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --glide: cubic-bezier(.22, 1, .36, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--lyric);
+  font-family: var(--font);
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.mode-floating { --bg: transparent; --u: min(13vw, 22vh); }
+
+/* On the desktop: the wallpaper sits underneath, dimmed only while lyrics are showing */
+body.mode-wallpaper { background: #000 var(--wall, none) center / cover no-repeat; }
+body.mode-wallpaper::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 2;
+  background: rgba(0, 0, 0, var(--wall-dim, .35));
+  opacity: 0; transition: opacity .8s ease;
+}
+
+/* background layers: wallpaper (optionally blurred) and blurred album art */
+.bg-wall, .bg-art { position: fixed; inset: 0; pointer-events: none; display: none; }
+body.mode-wallpaper .bg-wall { display: block; z-index: 0; background: var(--wall, none) center / cover no-repeat; }
+body.wall-blur .bg-wall { filter: blur(18px); transform: scale(1.06); }
+body:not(.mode-floating) .bg-art {
+  display: block; z-index: 1;
+  background: var(--art, none) center / cover no-repeat;
+  filter: blur(42px) saturate(1.25) brightness(.5); transform: scale(1.18);
+  opacity: 0; transition: opacity .9s ease;
+}
+body.album-bg.has-words .bg-art { opacity: 1; }
+/* fullscreen and screensaver: optional wallpaper or album-art background instead of black */
+body.mode-fullscreen[data-fsbg="wallpaper"] .bg-wall { display: block; z-index: 0; background: var(--wall, none) center / cover no-repeat; filter: brightness(.6); }
+body.mode-fullscreen[data-fsbg="wallpaper"].wall-blur .bg-wall { filter: blur(18px) brightness(.6); transform: scale(1.06); }
+body.mode-fullscreen[data-fsbg="album"] .bg-art { opacity: 1; }
+.stage { z-index: 3; transition: opacity .5s ease; }
+.chrome { z-index: 4; }
+body.lyrics-hidden .stage { opacity: 0; }
+body.lyrics-hidden.mode-wallpaper::before, body.lyrics-hidden .bg-art { opacity: 0 !important; }
+
+/* type options */
+body.upper .w .t, body.upper .rm { text-transform: uppercase; }
+body[data-slab="pill"] .w .t::before, body[data-slab="pill"] .rm-slab { clip-path: none; border-radius: .3em; }
+body[data-slab="none"] .w .t::before, body[data-slab="none"] .rm-slab { display: none; }
+body[data-slab="none"] .w.active, body[data-slab="none"] .rm,
+body[data-slab="none"].style-inkblot .w, body[data-slab="none"].style-squeeze .w { color: var(--hl); }
+
+/* calmer motion / battery */
+body.reduce-motion .w, body.reduce-motion .rm-l, body.reduce-motion .rm {
+  transition-property: opacity, color !important; transition-duration: .25s !important;
+}
+body.reduce-motion .drift, body.lowpower .drift { animation: none !important; transform: none !important; }
+body.idle .drift { animation-play-state: paused; }   /* nothing playing: stop the endless drift */
+body.lowpower .lens, body.lowpower.morphing .lens { filter: none !important; }
+body.mode-wallpaper.has-words::before { opacity: 1; }
+body.mode-wallpaper .chrome { display: none; }
+body.mode-wallpaper .lens::after { display: none; }
+
+.lens-defs { position: absolute; pointer-events: none; }
+
+/* ---------- Stage ---------- */
+.stage {
+  position: fixed; inset: 0;
+  display: grid; place-items: center;
+  perspective: 1400px;
+}
+
+.lens, .drift { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
+
+.stack {
+  contain: layout style;
+  position: absolute; left: calc(50% + var(--ox, 0px)); top: 50%;
+  width: 0; height: 0;
+  transform-style: preserve-3d;
+}
+
+/* Every visible word is absolutely placed by app.js via --x/--y/--s/--r. */
+.w {
+  position: absolute; left: 0; top: 0;
+  display: flex; align-items: center; gap: .18em;
+  white-space: nowrap;
+  font-size: var(--u);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  transform:
+    translate(-50%, -50%)
+    translate3d(var(--x, 0px), var(--y, 0px), var(--z, 0px))
+    rotate(var(--r, 0deg))
+    scale(calc(var(--s, 1) * var(--sx, 1)), var(--s, 1));
+  opacity: var(--o, 1);
+  transition:
+    transform .52s var(--glide),
+    opacity .38s var(--glide);
+  will-change: transform, opacity;
+}
+.w.italic .t { font-style: italic; font-weight: 700; }
+
+.w .t { position: relative; z-index: 1; padding: 0 .06em; }
+
+/* The highlight slab behind the word being sung */
+.w .t::before {
+  content: "";
+  position: absolute; z-index: -1;
+  left: -.02em; right: -.02em; top: .14em; bottom: .02em;
+  background: var(--hl);
+  clip-path: polygon(0 9%, 100% 0, 99% 100%, 1% 93%);
+  transform: scaleX(0); transform-origin: left center;
+  transition: transform .2s var(--glide);
+}
+.w.active { color: #fff; }
+.w.active .t::before { transform: scaleX(1); }
+.w:not(.active) .t::before { transform-origin: right center; transition-duration: .14s; }
+
+.w.ghost { color: var(--secondary); }
+.w.leaving { transition-duration: .42s, .3s, .18s; }
+
+/* Icons: emoji rendered as a solid silhouette tinted with the highlight colour */
+.w .ic {
+  display: none;
+  font-size: .78em;
+  font-style: normal;
+  color: transparent;
+  text-shadow: 0 0 0 var(--hl);
+  transform: scale(0) rotate(-25deg);
+  transition: transform .5s var(--spring);
+}
+.w.active .ic, .w.past .ic { transform: scale(1) rotate(0); }
+.w.ghost .ic { transform: scale(.4); opacity: .4; }
+body.style-visual .w .ic,
+body.style-fisheye-visual .w .ic { display: inline-block; }
+
+/* ---------- Ship: a wall drifting in three dimensions ---------- */
+body.style-ship .drift { animation: ship-drift 18s ease-in-out infinite alternate; }
+@keyframes ship-drift {
+  0%   { transform: rotateX(calc(16deg * var(--motion, 1)))  rotateY(calc(-18deg * var(--motion, 1))) rotateZ(calc(-2deg * var(--motion, 1))) translateZ(-40px); }
+  50%  { transform: rotateX(calc(6deg * var(--motion, 1)))   rotateY(calc(10deg * var(--motion, 1)))  rotateZ(calc(1deg * var(--motion, 1)))  translateZ(0); }
+  100% { transform: rotateX(calc(-10deg * var(--motion, 1))) rotateY(calc(20deg * var(--motion, 1)))  rotateZ(calc(3deg * var(--motion, 1)))  translateZ(-60px); }
+}
+body.style-ship .w { letter-spacing: -0.045em; font-weight: 900; }
+
+/* ---------- Fisheye: a convex stack under a lens ---------- */
+body.style-fisheye .lens,
+body.style-fisheye-visual .lens {
+  /* keep the filtered area to the word stack, not the whole screen */
+  width: min(92vw, 150vh); height: 84vh;
+  filter: url(#lensFilter);
+}
+body.style-fisheye .lens::after,
+body.style-fisheye-visual .lens::after {
+  /* faint glass sheen */
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 55% 45% at 50% 46%, rgba(255,255,255,.05), transparent 70%);
+}
+body.mode-floating .lens::after { display: none; }
+
+/* ---------- Pop: one word at a time, springing in ---------- */
+body.style-pop .w,
+body.style-stamp .w {
+  transition: transform .62s var(--spring), opacity .22s ease;
+}
+body.style-pop .w.leaving { transition: transform .35s ease-in, opacity .3s ease-in; }
+body.style-pop .w .ic,
+body.style-stamp .w.active .ic { display: inline-block; }
+
+/* ---------- Stamp: the sung word slams down, earlier ones stay scattered ---------- */
+body.style-stamp .w.active { transition: transform .42s cubic-bezier(.2, 1.9, .45, 1), opacity .12s linear; }
+body.style-stamp .w.past { color: var(--lyric); }
+body.style-stamp .w.active .t::before { transition-duration: .08s; }
+
+/* ---------- Line: whole line, slab wipes across each word as it is sung ---------- */
+body.style-line .w { font-weight: 800; transition: transform .45s var(--glide), opacity .3s ease; }
+body.style-line .w.active .t::before { transition: transform var(--wipe, .2s) linear; }
+body.style-line .w.past { color: var(--hl); }
+body.style-line .w.past .t::before { transform: scaleX(0); transition: none; }
+body.style-line .w.ghost { color: var(--lyric); }
+
+/* ---------- Orbit: the line rides a turning carousel ---------- */
+body.style-orbit .w { transition: transform .6s var(--glide), opacity .45s ease; backface-visibility: hidden; }
+body.style-orbit .stack { perspective: 900px; }
+
+/* ---------- Morph styles ---------- */
+body.morphing .lens { filter: url(#gooFilter); }
+
+/* single word that always wears its slab */
+body.style-inkblot .w, body.style-squeeze .w { color: #fff; }
+body.style-inkblot .w .t::before,
+body.style-squeeze .w .t::before { transform: scaleX(1); transition: none; }
+
+/* Inkblot: cross-fade under the goo filter so the shapes melt together */
+body.style-inkblot .w { transition: transform .62s var(--glide), opacity .5s ease; }
+
+/* Squeeze: new word expands from the right while the old one flattens to its left edge */
+body.style-squeeze .w { transition: transform .46s cubic-bezier(.7, 0, .25, 1), opacity .2s ease; }
+body.style-squeeze .w.leaving { transition: transform .46s cubic-bezier(.7, 0, .25, 1), opacity .15s ease .36s; }
+
+/* Remold: letters rearrange themselves into the next word */
+.rm {
+  position: absolute; left: 0; top: 0;
+  transform: translateY(var(--y, 0px)) scale(calc(1 + var(--beat, 0) * 0.06));   /* zero-size box: scales around the word centre */
+  font-weight: 800; line-height: 1; color: #fff; white-space: pre;
+  transition: font-size .5s var(--glide), opacity .3s ease;
+}
+.rm-slab {
+  position: absolute; left: 0; top: 0; height: .84em;
+  transform: translate(-50%, calc(-50% + .06em)) rotate(-1.2deg);
+  background: var(--hl);
+  clip-path: polygon(0 9%, 100% 0, 99% 100%, 1% 93%);
+  transition: width .5s var(--glide);
+}
+.rm-txt { position: absolute; left: 0; top: 0; }
+.rm-l {
+  position: absolute; left: 0; top: 0;
+  transform: translate(-50%, -50%) translateX(var(--lx, 0)) scale(var(--ls, 1));
+  filter: blur(var(--lb, 0));
+  transition: transform .5s var(--glide), opacity .35s ease, filter .4s ease;
+}
+
+/* ---------- Beat pulse (--beat: 0..~1.5, set every frame on .stack) ---------- */
+.w.active .t { display: inline-block; transform: scale(calc(1 + var(--beat, 0) * 0.07)); transform-origin: center; will-change: transform; }
+
+@keyframes drop-shake {
+  0% { transform: translate(0, 0); } 15% { transform: translate(-1.2%, .6%) rotate(-.6deg); }
+  30% { transform: translate(1.1%, -.5%) rotate(.5deg); } 45% { transform: translate(-.7%, .3%); }
+  60% { transform: translate(.5%, -.2%); } 100% { transform: translate(0, 0); }
+}
+body.drop .stage { animation: drop-shake .5s cubic-bezier(.3, .7, .4, 1); }
+
+/* ---------- Mood looks (only with "Full" auto mood) ---------- */
+/* Neon: glowing, fast, punchy */
+body[data-mood="neon"] .w, body[data-mood="neon"] .rm {
+  text-shadow: 0 0 .05em color-mix(in oklab, var(--hl) 70%, white), 0 0 .32em var(--hl);
+}
+body[data-mood="neon"] .w { transition-duration: .3s, .22s; }
+body[data-mood="neon"] .w .t::before, body[data-mood="neon"] .rm-slab {
+  clip-path: none; border-radius: .14em;
+  box-shadow: 0 0 .18em var(--hl), 0 0 .6em color-mix(in oklab, var(--hl) 55%, transparent);
+}
+/* the beat brightens a separate glow layer: only its opacity changes, so nothing is repainted */
+body[data-mood="neon"] .w.active .t::after {
+  content: ""; position: absolute; z-index: -2; left: -.02em; right: -.02em; top: .14em; bottom: .02em;
+  border-radius: .14em; box-shadow: 0 0 .5em .12em var(--hl), 0 0 1.2em .2em color-mix(in oklab, var(--hl) 60%, transparent);
+  opacity: calc(.15 + var(--beat, 0) * .85); will-change: opacity; pointer-events: none;
+}
+body[data-mood="neon"].mode-fullscreen { background: #05020b; }
+
+/* Bright: bouncy and saturated */
+body[data-mood="bright"] .w { transition-timing-function: var(--spring), ease; transition-duration: .5s, .3s; }
+
+/* Heavy: hard cuts, square slab, heavier type */
+body[data-mood="heavy"] .w { font-weight: 900; transition-duration: .16s, .12s; transition-timing-function: cubic-bezier(.6, 0, .2, 1); }
+body[data-mood="heavy"] .w .t, body[data-mood="heavy"] .rm { text-transform: uppercase; }
+body[data-mood="heavy"] .w .t::before, body[data-mood="heavy"] .rm-slab { clip-path: none; border-radius: 0; }
+
+/* Smooth: slow easing, soft glow */
+body[data-mood="smooth"] .w { transition-duration: .78s, .6s; }
+body[data-mood="smooth"] .w, body[data-mood="smooth"] .rm { text-shadow: 0 0 .35em color-mix(in oklab, var(--hl) 35%, transparent); }
+
+/* Soft: muted and slow */
+body[data-mood="soft"] .w { transition-duration: .95s, .8s; font-weight: 700; }
+body[data-mood="soft"] .w.ghost { opacity: calc(var(--o, 1) * .6); }
+
+/* ---------- Auto-hiding chrome ---------- */
+.chrome {
+  position: fixed; left: 50%; bottom: 22px;
+  transform: translate(-50%, 12px);
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 10px 12px 8px;
+  border-radius: 16px;
+  background: rgba(20, 20, 22, .72);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, .08);
+  color: rgba(255, 255, 255, .85);
+  font: 500 12.5px/1.2 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s ease, transform .35s var(--glide);
+  max-width: calc(100vw - 32px);
+}
+body.controls-revealed .chrome { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+
+.now-playing { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 260px; }
+.art { width: 36px; height: 36px; border-radius: 7px; object-fit: cover; background: #222; flex: none; }
+.art:not([src]), .art[src=""] { visibility: hidden; width: 0; margin-right: -10px; }
+.meta { min-width: 0; }
+.title, .artist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title { font-weight: 600; color: #fff; }
+.artist { color: rgba(255, 255, 255, .5); margin-top: 2px; }
+
+.styles { display: flex; padding: 3px; gap: 2px; border-radius: 10px; background: rgba(255,255,255,.06); }
+.seg, .act {
+  border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer;
+  border-radius: 8px; padding: 6px 10px; white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.seg:hover, .act:hover { background: rgba(255,255,255,.08); }
+.seg.active { background: var(--hl); color: #fff; }
+.actions { display: flex; gap: 2px; }
+.act { display: grid; place-items: center; padding: 7px; min-width: 30px; }
+.act.active { color: var(--hl); }
+#demoBadge { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; }
+#demoBadge.demo-active { color: var(--hl); }
+
+.progress {
+  position: absolute; left: 14px; right: 14px; bottom: 5px; height: 3px;
+  border-radius: 2px; background: rgba(255,255,255,.1); cursor: pointer;
+}
+.progress .fill { height: 100%; width: 0; border-radius: inherit; background: var(--hl); }
+
+@media (max-width: 760px) {
+  .now-playing { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.style-ship .drift { animation: none; transform: rotateX(8deg) rotateY(-10deg); }
+  .w, .w .ic, .w .t::before { transition-duration: .01s !important; }
+}
