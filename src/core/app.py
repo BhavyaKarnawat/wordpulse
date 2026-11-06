@@ -17,6 +17,8 @@ from src.core.power import PowerManager
 from src.core import system
 from src.core.mood import MOODS, MOOD_LABELS, GenreTags, classify, word_rate
 from src.audio.capture import AudioAnalyzer
+from src.lyrics.artwork import ArtworkFinder
+import queue
 from src.lyrics.service import LyricsService
 from src.media.gsmtc_provider import GSMTCMediaProvider
 from src.media.mock_provider import MockMediaProvider
@@ -70,6 +72,7 @@ class AppCoordinator:
         # live state the page needs besides settings
         self.runtime = {"hidden": False, "on_battery": False, "song_offset_ms": 0,
                         "mood": "", "mood_reason": "", "mood_bpm": 0, "mood_source": "", "audio": "off",
+                        "debug": bool(os.environ.get("WORDPULSE_DEBUG")), "art_hd": "",
                         "system_reduce_motion": system.system_reduce_motion(), "screensaver": screensaver}
         self.dnd = False
         self._paused_since: Optional[float] = None
@@ -89,6 +92,8 @@ class AppCoordinator:
         self.extra_windows: list = []      # (window, pinner) per extra monitor in "All displays"
         self.audio = AudioAnalyzer()
         self.genre = GenreTags(config.dir / "genre_tags.json" if config else None)
+        self.artwork = ArtworkFinder(config.dir / "artwork.json" if config else None)
+        self._commands: "queue.Queue[str]" = queue.Queue()
         self._mood_started = 0.0
         self._tags: list = []
         self.bridge.beat_source = self._beat_snapshot
@@ -127,6 +132,7 @@ class AppCoordinator:
             "reset_song_offset": self.reset_song_offset,
             "exit_screensaver": self.quit,
             "close_settings": self.close_settings_window,
+            "open_settings": self.open_settings_window,
             "song_mood": self.set_song_mood,
             "welcome": self.welcome_action,
         })
@@ -276,17 +282,25 @@ class AppCoordinator:
         if self.settings.mock_mode:
             self.mock_provider.seek(position_sec)
 
+    # playback controls: the demo player directly, real apps through Windows' media controls
+    # (run on the polling thread, where the media session lives)
     def toggle_playback(self):
         if self.settings.mock_mode:
             self.mock_provider.toggle_playback()
+        else:
+            self._commands.put("play_pause")
 
     def next_track(self):
         if self.settings.mock_mode:
             self.mock_provider.next_track()
+        else:
+            self._commands.put("next")
 
     def prev_track(self):
         if self.settings.mock_mode:
             self.mock_provider.prev_track()
+        else:
+            self._commands.put("previous")
 
     # ------------------------------------------------------------------ timing
     def set_timing_offset(self, offset_ms: int):
@@ -551,6 +565,60 @@ class AppCoordinator:
             },
         }
 
+    # ------------------------------------------------------------------ always-on health
+    def _check_display(self, now: float):
+        """Resolution changed or a monitor came / went: refit the lyrics (checked every 5 s)."""
+        if now - getattr(self, "_display_at", 0) < 5 or not (self.window and HAS_WEBVIEW):
+            return
+        self._display_at = now
+        rect = self._monitor_rect()
+        mode = self.settings.display_mode
+        if mode == DisplayMode.DESKTOP_WALLPAPER and self.pinner.attached and tuple(self.pinner.rect or ()) != tuple(rect):
+            log.info("Display changed to %s; refitting the lyrics", rect)
+            self.pinner.attach(self._window_hwnd(), rect)
+            self._sync_extra_windows()
+        elif mode == DisplayMode.FULLSCREEN_AMBIENT and rect != getattr(self, "_covered_rect", rect):
+            from src.core.desktop import cover_monitor
+            cover_monitor(self._window_hwnd(), rect, topmost=self.screensaver)
+        self._covered_rect = rect
+
+    @staticmethod
+    def page_stalled(last_poll: float, now: float, started: float, limit: float = 20.0) -> bool:
+        """The page polls several times a second; a long silence means it crashed or hung."""
+        reference = last_poll or started
+        return now - reference > limit
+
+    def _watchdog(self, _now: float):
+        """Reload the lyrics page if it stops talking to us (renderer crash, hang)."""
+        if not (self.window and HAS_WEBVIEW):
+            return
+        mono = time.monotonic()
+        started = getattr(self, "_started_mono", mono)
+        if not self.page_stalled(self.bridge.last_poll, mono, started):
+            return
+        if mono - getattr(self, "_last_reload", 0) < 120:      # at most one reload every 2 minutes
+            return
+        self._last_reload = mono
+        log.warning("Lyrics page stopped responding; reloading it")
+        try:
+            self.window.load_url(self._ui("index.html"))
+            self.bridge.last_poll = mono                         # give it time to come back
+        except Exception:
+            log.exception("Reloading the lyrics page failed")
+
+    def _fetch_artwork(self, track: TrackInfo):
+        self.runtime["art_hd"] = ""
+        if not self.settings.hd_artwork or self.settings.mock_mode:
+            return
+        tid = track.track_id
+
+        def _get():
+            url = self.artwork.lookup(track.title, track.artist)
+            if url and self.current_track and self.current_track.track_id == tid:
+                self.runtime["art_hd"] = url
+                self.push()
+        threading.Thread(target=_get, daemon=True).start()
+
     def _retry_if_offline(self, now: float):
         """Lyrics failed because we were offline: try again every 45 s until they load."""
         doc, t = self.current_doc, self.current_track
@@ -726,6 +794,7 @@ class AppCoordinator:
             expected_id = track.track_id
             self.runtime["song_offset_ms"] = self.config.get_song_offset(track.title, track.artist) if self.config else 0
             self._start_mood(track)
+            self._fetch_artwork(track)
 
             if self.settings.auto_theme and track.thumbnail_base64:
                 self.current_palette = self.palette_extractor.extract_from_base64(track.thumbnail_base64)
@@ -767,6 +836,11 @@ class AppCoordinator:
         last_slow = last_battery = 0.0
         while self.is_running:
             track = None
+            while not self._commands.empty():
+                try:
+                    loop.run_until_complete(self.gsmtc_provider.control(self._commands.get_nowait()))
+                except Exception:
+                    log.exception("Media control failed")
             try:
                 track = loop.run_until_complete(self.tick_media_update())
             except Exception:
@@ -778,6 +852,8 @@ class AppCoordinator:
                     self._update_hidden(track)
                     self._mood_tick(track)
                     self._retry_if_offline(now)
+                    self._check_display(now)
+                    self._watchdog(now)
                     if self.settings.display_mode == DisplayMode.DESKTOP_WALLPAPER and not self.pinner.is_healthy():
                         log.warning("Desktop host changed (Explorer restarted?); reattaching")
                         self.pinner.reattach()
@@ -800,6 +876,7 @@ class AppCoordinator:
     def start(self):
         if not self.is_running:
             self.is_running = True
+            self._started_mono = time.monotonic()
             self._poll_thread = threading.Thread(target=self._polling_worker, daemon=True)
             self._poll_thread.start()
             if self.settings.hotkeys_enabled:

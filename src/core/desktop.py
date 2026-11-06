@@ -13,6 +13,7 @@ Two desktop layouts exist:
 """
 import base64
 import ctypes
+import os
 import io
 import sys
 from ctypes import wintypes
@@ -179,7 +180,7 @@ class DesktopPinner:
         style &= ~(WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX)
         style |= WS_CHILD | WS_VISIBLE
         exstyle = (self._saved_exstyle & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
-        if insert_after:  # 24H2 layout composes children of Progman only when layered
+        if insert_after:  # 24H2 layout: composed as a layered child of Progman
             exstyle |= WS_EX_LAYERED
         user32.SetWindowLongPtrW(hwnd, GWL_STYLE, style)
         user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exstyle)

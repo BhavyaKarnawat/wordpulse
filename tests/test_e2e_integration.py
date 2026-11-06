@@ -16,7 +16,8 @@ def test_ui_assets_integrity():
     html = (ui_dir / "index.html").read_text(encoding="utf-8")
     assert 'id="stack"' in html
     assert 'id="lensFilter"' in html
-    assert 'data-style="FISHEYE_VISUAL"' in html
+    assert 'id="styleSelect"' in html            # styles are offered in a dropdown filled by app.js
+    assert 'id="player"' in html and 'id="fsArt"' in html
 
     css = (ui_dir / "style.css").read_text(encoding="utf-8")
     assert ".style-ship" in css

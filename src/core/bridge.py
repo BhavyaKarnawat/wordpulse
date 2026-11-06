@@ -36,6 +36,7 @@ class UIBridge:
         self._current_status: str = "STOPPED"
         self._current_track_id: str = ""
         self._measured_at: float = time.monotonic()
+        self.last_poll: float = 0.0
 
     def set_window(self, window):
         self._window = window
@@ -195,6 +196,7 @@ class UIBridge:
 
     def get_playback(self) -> Dict[str, Any]:
         """Fast lightweight poll for playback position and track identity."""
+        self.last_poll = time.monotonic()      # the page is alive (watchdog)
         pos = self._current_position
         if self._current_status == "PLAYING":
             pos += time.monotonic() - self._measured_at  # position *now*, not when last measured
@@ -347,6 +349,10 @@ class UIBridge:
 
     def welcome_action(self, name: str) -> bool:
         return bool(self._act("welcome", name))
+
+    def open_settings(self) -> bool:
+        self._act("open_settings")
+        return True
 
     def close_settings(self) -> bool:
         return bool(self._act("close_settings"))

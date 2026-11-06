@@ -75,3 +75,18 @@ def test_webview2_check_returns_a_bool():
 def test_second_launch_signal_without_a_running_copy_is_harmless():
     # no listener has created the event in this test process
     assert system.signal_running_instance() in (True, False)
+
+
+def test_page_watchdog_notices_a_silent_page():
+    stalled = AppCoordinator.page_stalled
+    assert not stalled(last_poll=100.0, now=110.0, started=0.0)         # polled 10 s ago: fine
+    assert stalled(last_poll=100.0, now=125.0, started=0.0)             # 25 s of silence: reload
+    assert not stalled(last_poll=0.0, now=15.0, started=0.0)            # still starting up
+    assert stalled(last_poll=0.0, now=30.0, started=0.0)                # never came up
+
+
+def test_get_playback_marks_the_page_alive():
+    b = UIBridge()
+    assert b.last_poll == 0.0
+    b.get_playback()
+    assert b.last_poll > 0

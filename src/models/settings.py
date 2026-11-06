@@ -38,6 +38,8 @@ FULLSCREEN_BG = ["black", "wallpaper", "album"]
 # each mood has a pool of styles that suit it; with Variety on, every song picks one
 DEFAULT_MOOD_STYLES = {"NEON": ["SQUEEZE", "POP", "STAMP", "INKBLOT", "CODE_VISUAL"], "BRIGHT": ["POP", "LINE", "VISUAL", "ORBIT", "WEB"], "HEAVY": ["STAMP", "SQUEEZE", "SHIP", "CODE"], "SMOOTH": ["REMOLD", "ORBIT", "LINE", "FISHEYE", "WEB", "BRANCHES"], "SOFT": ["FISHEYE", "LINE", "REMOLD", "SHIP", "CONSTELLATION", "BRANCHES"]}
 VARIETY = ["off", "subtle", "lively"]
+FRAME_RATES = ["battery", "balanced", "smooth"]
+FULLSCREEN_LAYOUTS = ["lyrics", "player", "art"]
 
 
 @dataclass
@@ -65,6 +67,8 @@ class AppSettings:
     wall_blur: bool = False
     album_background: bool = False     # use blurred album art behind the words
     fullscreen_bg: str = "black"       # fullscreen + screensaver background: black, wallpaper, album
+    fullscreen_layout: str = "lyrics"  # lyrics, player (now-playing card), art (cover fills the screen)
+    hd_artwork: bool = True            # look up a sharp cover for the fullscreen views (iTunes search)
 
     # motion
     shuffle: str = "off"               # one of SHUFFLE_MODES
@@ -72,6 +76,7 @@ class AppSettings:
     motion: float = 1.0                # 0.3 (calm) .. 1.5 (lively)
     reduce_motion: str = "system"      # follow Windows, or force on/off
     battery_saver: bool = True         # drop the heavy effects on battery
+    frame_rate: str = "balanced"       # battery (30 fps), balanced (60), smooth (the screen's rate)
 
     # mood (tempo / energy / genre)
     auto_mood: str = "full"            # off, beats (on-beat effects only), full (also style + look)

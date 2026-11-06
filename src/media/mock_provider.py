@@ -4,6 +4,7 @@ from typing import Callable, List, Optional
 from src.media.base import BaseMediaProvider
 from src.models.track import PlaybackStatus, TrackInfo
 from src.lyrics.builtin_lyrics import DEMO_TRACKS
+from src.media.demo_art import demo_cover
 
 
 class MockMediaProvider(BaseMediaProvider):
@@ -46,7 +47,7 @@ class MockMediaProvider(BaseMediaProvider):
             position=round(current_pos, 3),
             status=self.status,
             app_name=track_data["app_name"],
-            thumbnail_base64=""
+            thumbnail_base64=demo_cover(track_data["title"])
         )
 
     def play(self) -> None:

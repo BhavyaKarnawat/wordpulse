@@ -129,3 +129,17 @@ def test_demo_song_gets_a_mood_from_lyrics_alone(tmp_path):
     assert c.runtime["mood"] in ("NEON", "BRIGHT", "HEAVY", "SMOOTH", "SOFT")
     assert c.runtime["mood_source"] == "auto"
     assert c.audio.active is False             # demo mode never listens to the speakers
+
+
+def test_fullscreen_layout_setting(tmp_path):
+    c = AppCoordinator(settings=AppSettings(mock_mode=True), config=ConfigStore(tmp_path))
+    assert c.set_setting("fullscreen_layout", "art")["settings"]["fullscreen_layout"] == "art"
+    with pytest.raises(ValueError):
+        c.set_setting("fullscreen_layout", "cinema")
+
+
+def test_real_player_controls_are_queued_for_the_media_thread():
+    c = AppCoordinator(settings=AppSettings(mock_mode=False))
+    c.toggle_playback(); c.next_track(); c.prev_track()
+    got = [c._commands.get_nowait() for _ in range(3)]
+    assert got == ["play_pause", "next", "previous"]

@@ -236,6 +236,14 @@
       <div class="row"><div class="lbl"><b>Blur the wallpaper</b></div><label class="sw"><input type="checkbox" data-setting="wall_blur"><i></i></label></div>
       <div class="row"><div class="lbl"><b>Album art background</b><span>Blurred cover art behind the words while a song plays.</span></div><label class="sw"><input type="checkbox" data-setting="album_background"><i></i></label></div>
       <div class="row">
+        <div class="lbl"><b>Fullscreen view</b><span>Lyrics, a now-playing card, or the album cover filling the screen with the lyrics on top. Press L to switch.</span></div>
+        <div class="seg" data-setting="fullscreen_layout"><button data-v="lyrics">Lyrics</button><button data-v="player">Player</button><button data-v="art">Album art</button></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Sharp album covers</b><span>Looks up a large version of the cover (song title and artist are sent to Apple's iTunes search).</span></div>
+        <label class="sw"><input type="checkbox" data-setting="hd_artwork"><i></i></label>
+      </div>
+      <div class="row">
         <div class="lbl"><b>Fullscreen and screensaver background</b></div>
         <div class="seg" data-setting="fullscreen_bg"><button data-v="black">Black</button><button data-v="wallpaper">Wallpaper</button><button data-v="album">Album art</button></div>
       </div>
@@ -254,6 +262,10 @@
       <div class="row">
         <div class="lbl"><b>Reduce motion</b><span>Simple fades instead of movement.</span></div>
         <div class="seg" data-setting="reduce_motion"><button data-v="system">Follow Windows</button><button data-v="on">On</button><button data-v="off">Off</button></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>Frame rate</b><span>Balanced draws 30 fps on the desktop (where each frame costs more) and 60 fullscreen. Lower uses less power all day.</span></div>
+        <div class="seg" data-setting="frame_rate"><button data-v="battery">Battery (30)</button><button data-v="balanced">Balanced</button><button data-v="smooth">Max</button></div>
       </div>
       <div class="row">
         <div class="lbl"><b>Variety</b><span>Each song gets its own twist: style from the mood's pool, colour shift, tilt, entrance direction, drift. Lively also gives the chorus its own style.</span></div>

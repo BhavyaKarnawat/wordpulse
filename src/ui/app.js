@@ -31,12 +31,17 @@
 
   const body = document.getElementById('appBody');
   const stack = document.getElementById('stack');
+  const drift = document.getElementById('drift');
   const trackTitle = document.getElementById('trackTitle');
   const trackArtist = document.getElementById('trackArtist');
   const albumArt = document.getElementById('albumArt');
   const progressFill = document.getElementById('progressFill');
   const progressBarWrap = document.getElementById('progressBarWrap');
-  const segs = document.querySelectorAll('.seg');
+  const segs = document.querySelectorAll('.seg');            // (older builds had one button per style)
+  const styleSelect = document.getElementById('styleSelect');
+  const fsArt = document.getElementById('fsArt');
+  const pArt = document.getElementById('pArt');
+  const player = document.getElementById('player');
   const btnPin = document.getElementById('btnPinToggle');
   const btnMode = document.getElementById('btnModeToggle');
   const btnDemo = document.getElementById('btnDemoToggle');
@@ -119,6 +124,7 @@
     Object.values(STYLE_CLASS).forEach(c => body.classList.remove(...c.split(' ')));
     body.classList.add(...STYLE_CLASS[s].split(' '));
     segs.forEach(b => b.classList.toggle('active', b.dataset.style === s));
+    if (styleSelect && styleSelect.value !== s) styleSelect.value = s;
     layoutKey = '';
     if (notify) call('set_display_style', s);
   }
@@ -262,6 +268,8 @@
     body.classList.toggle('wall-blur', !!s.wall_blur);
     body.classList.toggle('album-bg', !!s.album_background);
     body.dataset.fsbg = s.fullscreen_bg || 'black';
+    setLayout(s.fullscreen_layout || 'lyrics');
+    applyArt();
     if (s.fullscreen_bg === 'wallpaper') loadWallpaper();
     root.setProperty('--motion', s.motion ?? 1);
     body.classList.toggle('reduce-motion', reduceMotion());
@@ -350,6 +358,59 @@
     if (want && STYLE_CLASS[want] && want !== style) setStyle(want, false);
   }
 
+  // ---------- Fullscreen views: lyrics / player card / cover filling the screen ----------
+  let layout = 'lyrics';
+  function setLayout(next, animate) {
+    if (next === layout) return;
+    const from = layout;
+    layout = next;
+    // the card's cover grows to fill the screen when you go from the player to the album-art view
+    if (animate && from === 'player' && next === 'art' && body.classList.contains('mode-fullscreen') && !reduceMotion()) {
+      const r = pArt.getBoundingClientRect();
+      fsArt.style.transition = 'none';
+      Object.assign(fsArt.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', borderRadius: '18px' });
+      void fsArt.offsetWidth;
+      fsArt.style.transition = '';
+      requestAnimationFrame(() => Object.assign(fsArt.style, { left: '0px', top: '0px', width: '100vw', height: '100vh', borderRadius: '0px' }));
+    } else {
+      Object.assign(fsArt.style, { left: '', top: '', width: '', height: '', borderRadius: '' });
+    }
+    body.dataset.layout = next;
+    layoutKey = '';
+  }
+  function cycleLayout() {
+    const order = ['lyrics', 'player', 'art'];
+    const next = order[(order.indexOf(layout) + 1) % order.length];
+    setLayout(next, true);
+    call('set_setting', 'fullscreen_layout', next);
+  }
+  function applyArt() {
+    const sharp = cfg.art_hd || '';
+    const thumb = track && track.thumbnail_base64 && track.thumbnail_base64.length > 20 ? track.thumbnail_base64 : '';
+    const src = sharp || thumb;
+    for (const img of [fsArt, pArt]) {
+      if (src && img.dataset.src !== src) { img.dataset.src = src; img.src = src; }
+      if (!src) { img.removeAttribute('src'); img.dataset.src = ''; }
+    }
+    body.classList.toggle('art-soft', !sharp);    // only a small thumbnail: soften it when it's full screen
+  }
+  document.querySelectorAll('[data-cmd]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.cmd === 'toggle_playback') {
+      basePos += playing ? (performance.now() - baseTime) / 1000 : 0;
+      baseTime = performance.now();
+      playing = !playing;
+      body.classList.toggle('is-playing', playing);
+    }
+    call(b.dataset.cmd);
+  }));
+  document.getElementById('pLyrics').addEventListener('click', () => { setLayout('art', true); call('set_setting', 'fullscreen_layout', 'art'); });
+  document.getElementById('btnLayout').addEventListener('click', cycleLayout);
+  document.getElementById('btnSettings').addEventListener('click', () => call('open_settings'));
+  if (styleSelect) {
+    styleSelect.innerHTML = Object.keys(STYLE_CLASS).map(k => `<option value="${k}">${k.charAt(0) + k.slice(1).toLowerCase().replace('_', ' ')}</option>`).join('');
+    styleSelect.addEventListener('change', () => setStyle(styleSelect.value));
+  }
+
   // ---------- Shuffle ----------
   let lastShuffleLine = -1;
   function pickShuffle() {
@@ -367,12 +428,15 @@
     track = t;
     trackTitle.textContent = t.display_title || t.title || 'Waiting for music';
     trackArtist.textContent = t.display_artist || t.artist || '';
+    document.getElementById('pTitle').textContent = trackTitle.textContent;
+    document.getElementById('pArtist').textContent = trackArtist.textContent;
     if (t.thumbnail_base64 && t.thumbnail_base64.length > 20) albumArt.src = t.thumbnail_base64;
     else albumArt.removeAttribute('src');
     duration = t.duration || 0;
     const id = t.track_id || (t.artist + ' - ' + t.title);
     if (t.thumbnail_base64 && t.thumbnail_base64.length > 20) document.documentElement.style.setProperty('--art', `url("${t.thumbnail_base64}")`);
     else document.documentElement.style.removeProperty('--art');
+    applyArt();
     if (id !== currentTrackId) {          // new song: take its position as-is
       currentTrackId = id;
       statusUntil = performance.now() + 6000;
@@ -437,6 +501,7 @@
       if (pb) {
         if (pb.version !== stateVersion) await syncFullState();
         correctClock(pb.position, pb.status === 'PLAYING');
+        body.classList.toggle('is-playing', pb.status === 'PLAYING');
         applyBeat(pb.status === 'PLAYING' ? pb.beat : null);
       }
     } catch (_) { /* transient during track changes */ }
@@ -569,6 +634,7 @@
     if (loc.kind === 'status') {
       return [{ key: 'status:' + loc.text, text: loc.text, icon: '', role: 'ghost', s: 0.34, x: 0, y: area.centre, r: 0, o: 0.75 }];
     }
+    if (layout === 'player' && body.classList.contains('mode-fullscreen')) return [];   // the card is the whole view
     if (loc.kind === 'none') {
       if (mode === 'DESKTOP_WALLPAPER') return []; // plain desktop until music plays
       const label = track && track.title ? track.title : 'Play something';
@@ -1025,6 +1091,137 @@
     return true;
   }
 
+  // ---------- Motion engine ----------
+  // CSS transitions render at the screen's full refresh rate (144 frames a second on a 144 Hz screen)
+  // for as long as anything moves, which while someone is singing is nearly always. Instead we tween
+  // the layout variables ourselves at a capped rate (60 fps by default, 30 on battery) and draw nothing
+  // at all while nothing moves.
+  const UNITS = { x: 'px', y: 'px', z: 'px', s: '', r: 'deg', o: '', sx: '', len: 'px', ang: 'deg' };
+  const moving = new Set();
+  function bezier(x1, y1, x2, y2) {
+    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+    const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    const fx = t => ((ax * t + bx) * t + cx) * t, fy = t => ((ay * t + by) * t + cy) * t;
+    const dfx = t => (3 * ax * t + 2 * bx) * t + cx;
+    return x => {
+      if (x <= 0) return 0;
+      if (x >= 1) return 1;
+      let t = x;
+      for (let i = 0; i < 6; i++) { const d = fx(t) - x, dd = dfx(t); if (Math.abs(d) < 1e-4 || !dd) break; t -= d / dd; }
+      return fy(Math.min(1, Math.max(0, t)));
+    };
+  }
+  const EASE = {
+    glide: bezier(.22, 1, .36, 1), spring: bezier(.34, 1.56, .64, 1), slam: bezier(.2, 1.9, .45, 1),
+    squeeze: bezier(.7, 0, .25, 1), hard: bezier(.6, 0, .2, 1), out: bezier(0, 0, .58, 1), in: bezier(.42, 0, 1, 1),
+  };
+  // [movement ms, movement easing, fade ms] per style / mood (the old CSS timings)
+  function motionFor(el, leaving) {
+    const mood = body.dataset.mood;
+    if (el.classList.contains('caret')) return [180, EASE.glide, 180];
+    if (el.classList.contains('ln')) return [550, EASE.glide, 400];
+    if (mood === 'heavy') return [160, EASE.hard, 120];
+    if (mood === 'neon') return [300, EASE.glide, 220];
+    if (mood === 'smooth') return [780, EASE.glide, 600];
+    if (mood === 'soft') return [950, EASE.glide, 800];
+    switch (style) {
+      case 'POP': return leaving ? [350, EASE.in, 300] : [620, EASE.spring, 220];
+      case 'STAMP': return el.classList.contains('active') && !leaving ? [420, EASE.slam, 120] : [620, EASE.spring, 220];
+      case 'SQUEEZE': return [460, EASE.squeeze, leaving ? 150 : 200];
+      case 'LINE': return [450, EASE.glide, 300];
+      case 'ORBIT': return [600, EASE.glide, 450];
+      case 'INKBLOT': return [620, EASE.glide, 500];
+    }
+    if (mood === 'bright') return [500, EASE.spring, 300];
+    return leaving ? [420, EASE.glide, 300] : [520, EASE.glide, 380];
+  }
+  function writeVars(el, v) {
+    for (const k in v) {
+      if (v[k] === undefined || !(k in UNITS)) continue;
+      el.style.setProperty('--' + k, UNITS[k] ? (+v[k]).toFixed(2) + UNITS[k] : (+v[k]).toFixed(4));
+    }
+  }
+  function setNow(el, vals) {
+    el._v = Object.assign(el._v || {}, vals);
+    writeVars(el, vals);
+  }
+  function animateTo(el, vals, leaving) {
+    const cur = Object.assign({}, el._v || {});
+    for (const k in vals) if (cur[k] === undefined) cur[k] = vals[k];
+    let changed = false;
+    for (const k in vals) if (Math.abs(cur[k] - vals[k]) > 1e-3) changed = true;
+    if (!changed && !el._tw) { setNow(el, vals); return 0; }
+    const [dur, ease, odur] = motionFor(el, leaving);
+    if (reduceMotion()) {
+      // calmer: positions snap, only the fade animates
+      const snap = Object.assign({}, vals); delete snap.o;
+      setNow(el, snap);
+      el._tw = { from: cur, to: Object.assign({}, cur, snap, { o: vals.o ?? cur.o }), t0: performance.now(), dur: 1, ease: EASE.out, odur: 250 };
+    } else {
+      el._tw = { from: cur, to: Object.assign({}, cur, vals), t0: performance.now(), dur, ease, odur };
+    }
+    el.classList.add('mv');                  // own graphics layer only while it moves
+    moving.add(el);
+    return Math.max(dur, odur);
+  }
+  function stepMotion(now) {
+    moving.forEach(el => {
+      const tw = el._tw;
+      if (!tw || !el.isConnected) { moving.delete(el); el.classList.remove('mv'); return; }
+      const p = Math.min(1, (now - tw.t0) / tw.dur), po = Math.min(1, (now - tw.t0) / tw.odur);
+      const e = tw.ease(p), eo = EASE.out(po);
+      const v = {};
+      for (const k in tw.to) {
+        const a = tw.from[k], b = tw.to[k];
+        v[k] = a === undefined ? b : a + (b - a) * (k === 'o' ? eo : e);
+      }
+      el._v = v;
+      writeVars(el, v);
+      if (p >= 1 && po >= 1) { el._tw = null; moving.delete(el); el.classList.remove('mv'); }
+    });
+  }
+  function slotVals(sl) {
+    const v = { x: sl.x || 0, y: sl.y || 0, z: sl.z || 0, s: sl.s, r: sl.r || 0, o: sl.o, sx: sl.sx == null ? 1 : sl.sx };
+    if (sl.len != null) { v.len = sl.len; v.ang = sl.ang; }
+    return v;
+  }
+  function cssToNums(obj) {           // leaveState speaks CSS ("--y": "120px"); the engine wants numbers
+    const out = {};
+    for (const k in obj) out[k.replace(/^--/, '')] = parseFloat(obj[k]);
+    return out;
+  }
+
+  // Ship's slow 3D drift, computed here at 30 fps instead of a CSS animation at full refresh rate
+  let lastDrift = 0;
+  function driftFrame(now) {
+    if (style !== 'SHIP' || reduceMotion() || body.classList.contains('lowpower')) {
+      if (lastDrift) { drift.style.transform = ''; lastDrift = 0; }
+      return false;
+    }
+    if (now - lastDrift < 33) return true;
+    lastDrift = now;
+    const m = (cfg.motion ?? 1) * (variant ? variant.motion : 1);
+    const k = variant ? variant.drift : 0;
+    const t = now / 1000;
+    const speeds = [[0.17, 0.11], [0.13, 0.09], [0.21, 0.15]][k] || [0.17, 0.11];
+    const rx = Math.sin(t * speeds[0] * 2 * Math.PI / 3) * 13 * m;
+    const ry = Math.sin(t * speeds[1] * 2 * Math.PI / 3 + k) * 19 * m;
+    const rz = Math.sin(t * 0.05 * 2 * Math.PI + k * 2) * 2.5 * m;
+    const tz = -30 - 25 * Math.sin(t * 0.07 * 2 * Math.PI);
+    drift.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) rotateZ(${rz.toFixed(2)}deg) translateZ(${tz.toFixed(1)}px)`;
+    return true;
+  }
+
+  // frame-rate cap: battery 30, balanced 60, smooth = the screen's own rate
+  function targetFps() {
+    if (cfg.screensaver) return 60;
+    if (cfg.battery_saver && cfg.on_battery) return 30;
+    // a window attached to the desktop costs about twice as much per frame as a normal one,
+    // so Balanced draws the desktop at 30 fps and fullscreen / floating at 60
+    if ((cfg.frame_rate || 'balanced') === 'balanced') return mode === 'DESKTOP_WALLPAPER' ? 30 : 60;
+    return { battery: 30, smooth: 1000 }[cfg.frame_rate] || 60;
+  }
+
   // ---------- Keyed DOM reconciliation ----------
   const live = new Map(); // key -> element
 
@@ -1055,16 +1252,10 @@
     return el;
   }
 
-  function place(el, sl) {
-    el.style.setProperty('--x', sl.x + 'px');
-    el.style.setProperty('--y', sl.y + 'px');
-    el.style.setProperty('--z', (sl.z || 0) + 'px');
-    el.style.setProperty('--s', sl.s);
-    el.style.setProperty('--r', sl.r + 'deg');
-    el.style.setProperty('--o', sl.o);
+  function place(el, sl, immediate) {
+    if (immediate) setNow(el, slotVals(sl));
+    else animateTo(el, slotVals(sl));
     el.style.setProperty('--wipe', (sl.wipe || 0.2) + 's');
-    el.style.setProperty('--sx', sl.sx == null ? 1 : sl.sx);
-    if (sl.len != null) { el.style.setProperty('--len', sl.len + 'px'); el.style.setProperty('--ang', sl.ang + 'deg'); }
     if (sl.chars) el.style.setProperty('--chars', sl.chars);
     if (sl.wpx) el.dataset.w = sl.wpx;
     el.classList.toggle('active', sl.role === 'active');
@@ -1085,21 +1276,19 @@
       if (keep.has(key)) return;
       live.delete(key);
       el.classList.add('leaving');
-      Object.entries(leaveState(el)).forEach(([k, v]) => el.style.setProperty(k, v));
-      el.style.setProperty('--o', 0);
-      setTimeout(() => el.remove(), 460);
+      const ms = animateTo(el, Object.assign(cssToNums(leaveState(el)), { o: 0 }), true);
+      setTimeout(() => el.remove(), (ms || 0) + 40);
     });
 
     slots.forEach(sl => {
       let el = live.get(sl.key);
       if (!el) {
         el = makeWord(sl);
-        // enter from just below its slot
-        place(el, Object.assign({}, sl, enterState(sl), { role: sl.role === 'active' ? 'ghost' : sl.role }));
-        el.style.transition = 'none';
+        // start from the style's entry state (below / scaled / faded...), then glide in
+        place(el, Object.assign({}, sl, enterState(sl), { role: sl.role === 'active' ? 'ghost' : sl.role }), true);
+        el.classList.toggle('ghost', sl.role === 'active' || sl.role === 'ghost');
         stack.appendChild(el);
-        void el.offsetWidth;
-        el.style.transition = '';
+        void el.offsetWidth;          // so the slab / colour change below still fades in
         live.set(sl.key, el);
       }
       place(el, sl);
@@ -1117,12 +1306,13 @@
       ? `${loc.li}|${loc.wi}|${loc.prog > 0.55 ? 1 : 0}|${loc.prog > 0.4 ? 1 : 0}`
       : loc.kind === 'gap' ? `gap|${loc.nextIdx}|${loc.until <= 1.4 ? 1 : 0}` : `none|${track && track.title}`;
     const full = key + '|' + style + '|' + unit;
-    if (full === layoutKey) return;
+    if (full === layoutKey) return loc;
     layoutKey = full;
     const slots = layoutFor(loc);
     const remoldShown = style === 'REMOLD' ? renderRemold(loc) : (clearRemold(), false);
     body.classList.toggle('has-words', (slots.length > 0 || remoldShown) && loc.kind !== 'none');
     render(slots);
+    return loc;
   }
 
   // ---------- Frame timing (reported to Python for diagnostics) ----------
@@ -1166,12 +1356,23 @@
   // ---------- Frame loop ----------
   // Draw every frame only while something can change; otherwise check 4x a second.
   // (A paused song with a still word on screen used ~13% of a core before this.)
-  function needsFrames() {
-    if (cfg.hidden) return false;
-    if (playing || standalone) return true;
-    if (body.classList.contains('controls-revealed') || body.classList.contains('morphing') || body.classList.contains('drop')) return true;
-    // a word still gliding into place, a fade still running (the endless Ship drift doesn't count)
-    return document.getAnimations().some(a => a.playState === 'running' && a.effect && a.effect.getTiming().iterations !== Infinity);
+  // How long until something needs drawing: 0 = next frame (at the capped rate), otherwise sleep.
+  function nextWake(loc, pos, drifting) {
+    if (cfg.hidden) return 400;
+    if (moving.size || body.classList.contains('controls-revealed') || body.classList.contains('morphing') ||
+        body.classList.contains('drop') || remold.el && remold.letters.some(L => L.el.getAnimations().length)) return 0;
+    if (!playing && !standalone) return 250;
+    if (drifting || lastBeatVar > 0 || (beat.period && cfg.auto_mood && cfg.auto_mood !== 'off' && beat.conf >= 0.2 && !reduceMotion())) return 0;
+    if (loc && loc.kind === 'word' && (style === 'LINE' || style === 'CODE' || style === 'CODE_VISUAL')) return 0;   // wipe / typing
+    // nothing animating: sleep until the next word (or the next point where the layout changes)
+    if (loc && loc.kind === 'word') {
+      const w = loc.words, i = loc.wi;
+      const start = w[i].start_time, next = i + 1 < w.length ? w[i + 1].start_time : (w[i].end_time || start + 0.6);
+      const span = Math.max(0.05, next - start);
+      const marks = [start + span * 0.4, start + span * 0.55, next].filter(t => t > pos);
+      if (marks.length) return Math.max(0, Math.min(250, (Math.min(...marks) - pos) * 1000 - 8));
+    }
+    return 120;
   }
   // An error in one frame must never stop the animation for good: log it (rarely) and carry on.
   let lastErrorAt = 0;
@@ -1184,14 +1385,17 @@
   addEventListener('error', e => reportError(e.message));
   addEventListener('unhandledrejection', e => reportError(String(e.reason)));
   function tick() {
-    let busy = true;
+    let wake = 0;
     try {
-      busy = frame();
+      wake = frame();
     } catch (e) {
       reportError((e && e.stack) || String(e));
+      wake = 100;
     } finally {
-      if (busy) requestAnimationFrame(tick);
-      else setTimeout(() => requestAnimationFrame(tick), 250);
+      const fps = targetFps();
+      if (wake > 0) setTimeout(() => requestAnimationFrame(tick), wake);
+      else if (fps >= 120) requestAnimationFrame(tick);
+      else setTimeout(() => requestAnimationFrame(tick), Math.max(0, 1000 / fps - 4));
     }
   }
   function frame() {
@@ -1204,11 +1408,31 @@
     if (duration > 0 && body.classList.contains('controls-revealed')) {
       progressFill.style.width = Math.max(0, Math.min(100, (pos / duration) * 100)) + '%';
     }
-    if (!cfg.hidden) { update(pos); beatFrame(performance.now()); }
-    perfSample();
-    const busy = needsFrames();
-    body.classList.toggle('idle', !busy);
-    return busy;
+    const now = performance.now();
+    let loc = null, drifting = false;
+    if (!cfg.hidden) {
+      loc = update(pos);
+      stepMotion(now);
+      beatFrame(now);
+      drifting = (playing || standalone) && driftFrame(now);
+      progressFrame(loc);
+    }
+    if (cfg.debug) perfSample();
+    const wake = nextWake(loc, pos, drifting);
+    body.classList.toggle('idle', wake > 0 && !playing);
+    return wake;
+  }
+
+  // Line's wipe and Code's typing follow the song's position (instead of CSS animations)
+  function progressFrame(loc) {
+    if (!loc || loc.kind !== 'word') return;
+    const el = live.get(loc.li + ':' + loc.wi);
+    if (!el) return;
+    if (style === 'LINE') el.style.setProperty('--wp', loc.prog.toFixed(3));
+    else if (style === 'CODE' || style === 'CODE_VISUAL') {
+      const n = Math.max(1, parseInt(el.style.getPropertyValue('--chars')) || 1);
+      el.style.setProperty('--tp', (Math.ceil(loc.prog * n) / n).toFixed(3));
+    }
   }
 
   // ---------- Screensaver: any real input ends it ----------
@@ -1249,6 +1473,7 @@
     else if (k === '-') setStyle('REMOLD');
     else if (k === 'F11' || k === 'Tab') { e.preventDefault(); btnMode.click(); }
     else if (k === 't' || k === 'T') btnPin.click();
+    else if (k === 'l' || k === 'L') cycleLayout();
     else if (k === 'd' || k === 'D') btnDemo.click();
     else if (e.code === 'Space') {
       e.preventDefault();

@@ -12,7 +12,7 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from src.models.settings import (AUTO_MOOD, DEFAULT_MOOD_STYLES, FULLSCREEN_BG, VARIETY, AppSettings, DisplayMode, DisplayStyle,
+from src.models.settings import (AUTO_MOOD, DEFAULT_MOOD_STYLES, FRAME_RATES, FULLSCREEN_BG, FULLSCREEN_LAYOUTS, VARIETY, AppSettings, DisplayMode, DisplayStyle,
                                  POSITIONS, REDUCE_MOTION, SHUFFLE_MODES, SLAB_SHAPES)
 
 RUNTIME_ONLY = {"start_with_windows", "mock_mode", "window_opacity"}
@@ -55,6 +55,10 @@ def coerce(name: str, value: Any, current: Any) -> Any:
     if name == "fullscreen_bg" and value not in FULLSCREEN_BG:
         raise ValueError(name)
     if name == "variety" and value not in VARIETY:
+        raise ValueError(name)
+    if name == "frame_rate" and value not in FRAME_RATES:
+        raise ValueError(name)
+    if name == "fullscreen_layout" and value not in FULLSCREEN_LAYOUTS:
         raise ValueError(name)
     if name == "mood_styles":
         # {mood: style or [styles]} -> {mood: [styles]}; an empty pool falls back to the default one

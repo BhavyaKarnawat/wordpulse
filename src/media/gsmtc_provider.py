@@ -64,6 +64,22 @@ class GSMTCMediaProvider(BaseMediaProvider):
             return sess
         return None
 
+    async def control(self, command: str) -> bool:
+        """Play/pause, next or previous on the app we're following (through Windows' media controls)."""
+        session = getattr(self, "_session", None)
+        if not session:
+            return False
+        calls = {"play_pause": session.try_toggle_play_pause_async,
+                 "next": session.try_skip_next_async,
+                 "previous": session.try_skip_previous_async}
+        fn = calls.get(command)
+        if not fn:
+            return False
+        try:
+            return bool(await asyncio.wait_for(fn(), timeout=2.0))
+        except Exception:
+            return False
+
     async def list_players(self) -> list:
         """App ids that currently have a media session (for the settings window)."""
         manager = await self._ensure_manager()
@@ -117,6 +133,7 @@ class GSMTCMediaProvider(BaseMediaProvider):
 
         try:
             session = self._pick_session(manager)
+            self._session = session
 
             if not session:
                 self._last_status = PlaybackStatus.STOPPED
