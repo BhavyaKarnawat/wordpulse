@@ -9,7 +9,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-python -m pip install --user -q -r requirements.txt "pyinstaller>=6.10"
+python -m pip install --user -q -r requirements-dev.txt
 
 $version = (python -c "from src.version import APP_VERSION; print(APP_VERSION)").Trim()
 

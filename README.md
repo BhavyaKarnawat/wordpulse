@@ -1,140 +1,115 @@
-# WordPulse: word-by-word lyrics on your Windows desktop
+<div align="center">
 
+# WordPulse
 
-> Live, word-by-word lyrics for whatever you're playing, right on your Windows desktop.
-> Lights lyrics word-by-word at the exact moment each syllable is sung, synchronized to your active media player.
+**Live, word-by-word lyrics for whatever you're playing, right on your Windows desktop.**
 
-![WordPulse Architecture](https://img.shields.io/badge/Windows-GSMTC%20%7C%20WinRT-0078D4?logo=windows&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![WebView2](https://img.shields.io/badge/Engine-Microsoft%20Edge%20WebView2-0078D7?logo=microsoftedge&logoColor=white)
+Each word lights up the moment it's sung. Works with Spotify, Apple Music, YouTube Music, Tidal and your browser. Free, open source, no account.
 
+[![Download for Windows](https://img.shields.io/badge/Download-Windows%2010%20%2F%2011-ff2d6f?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/BhavyaKarnawat/wordpulse/releases/latest)
 
----
+[![Tests](https://github.com/BhavyaKarnawat/wordpulse/actions/workflows/ci.yml/badge.svg)](https://github.com/BhavyaKarnawat/wordpulse/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## ✨ Features
+<img src="docs/media/hero.gif" alt="WordPulse lighting up lyrics word by word" width="720">
 
-- **Lyrics on your desktop:** By default WordPulse draws behind your desktop icons, on top of your wallpaper, like a live wallpaper. The desktop looks normal until music plays, then the words appear. There's no window or taskbar button; everything lives in the tray.
-- **Word-by-word timing:** Each word lights up as it's sung. Songs with word-level timing are exact; line-timed songs get an estimate that learns each song's singing pace. You can also tap along to sync any song yourself (see below).
-- **Works with what you already play:** Uses Windows' built-in media controls (GSMTC) to follow Spotify, Apple Music, Tidal, YouTube Music, and browsers. No login.
-- **16 display styles.** The sung word always sits in the middle of the screen:
-  1. **Ship:** a typographic wall drifting in 3D.
-  2. **Fisheye:** a convex lens stack with the sung word closest to the glass.
-  3. **Fisheye Visual:** the lens plus icons.
-  4. **Visual:** icons pop in beside the words (about 800 mapped words).
-  5. **Pop:** one big word at a time, springing in.
-  6. **Stamp:** each word slams onto the centre, and earlier words of the line stay scattered around it.
-  7. **Line:** the whole line shows, and the highlight wipes across each word as it's sung.
-  8. **Orbit:** the line rides a 3D carousel that turns to bring the sung word to the front.
-  9. **Inkblot:** the old word melts into the new one like ink, slab and all, then snaps back to crisp text.
-  10. **Squeeze:** the new word pushes in from the right and squashes the old one flat against its left edge.
-  11. **Remold:** the old word's letters rearrange into the new word. Shared letters slide to their new spots, extra letters melt away, and new ones sprout from their neighbours while the slab stretches to fit.
-  12. **Constellation:** each word becomes a star joined to the last by a line that draws itself in. The map builds as the line is sung and pans to keep the current star centred.
-  13. **Branches:** words grow upward like a branching plant, alternating sides, with the odd fork.
-  14. **Web:** a mind-map. The sung word sits at the hub, and earlier words orbit it on rings joined by spokes.
-  15. **Code:** the line types itself out like code in an editor, with line numbers, syntax colours and a blinking cursor.
-  16. **Code Visual:** Code, plus each word's icon as a comment.
-- **Variety, so a session never feels the same:** each song draws its own style from its mood's pool (avoiding the last few used), plus its own slab tilt, colour shift, entry direction, motion strength and drift. **Lively** also gives the chorus its own style. You choose each mood's pool in Settings › Mood.
-- **Mood that follows the music:** WordPulse listens to the beat (on your PC only; audio is never saved or sent) and reads each song's lyric speed and genre. It then picks one of five moods: **Neon** for rap, drill and EDM, **Bright** for upbeat pop, **Heavy** for rock and metal, **Smooth** for R&B and soul, and **Soft** for ballads and acoustic songs. Each mood sets the style and the colours, and adds on-beat pulses and drop shakes. You can override the mood per song, and choose which style each mood uses.
-- **Auto Sync colours:** The highlight colour comes from the album art, and each mood re-tunes it.
-- **Works offline:** Every lyric download is saved, so songs you've played before work without internet. When you're offline the app says so, and retries until you're back online.
-- **Keeps the screen awake** while music plays.
-- **Other modes:** fullscreen, a floating window you can pin on top, a screensaver, and **All displays**, which puts lyrics on every monitor.
-- **Settings window and tray:** saved settings, placement, fonts, highlight shape, wallpaper dim and blur, per-song timing, and system-wide hotkeys. The lyrics hide themselves during games or fullscreen video.
-- **Start with Windows** and a **daily update check**, both optional.
-- **Offline demo:** three original songs written for the demo, with word timing.
+<sub>Shown with the built-in demo songs.</sub>
 
-### Tap to sync
-
-For songs without word timing, right-click the tray icon and choose **Sync Words for This Song…**. While the song plays, tap <kbd>Space</kbd> (or click) each time a word is sung:
-
-| Key | Action |
-|-----|--------|
-| <kbd>Space</kbd> / click | Mark the highlighted word as sung now |
-| <kbd>Backspace</kbd> | Undo the last tap |
-| <kbd>↓</kbd> / <kbd>Enter</kbd> | Skip the rest of this line |
-| <kbd>Home</kbd> | Jump to the line playing now |
-| <kbd>Ctrl</kbd>+<kbd>S</kbd> | Save |
-
-You can start mid-song and save at any point. Untapped words keep their estimated timing. The **Reaction** slider shifts taps earlier to cancel out reaction time (default 120 ms). Saved timings are stored per song in `%USERPROFILE%\.wordpulse\lyrics_cache` and win over downloaded lyrics. **Reset to source** removes them.
+</div>
 
 ---
 
-## 🚀 Quick Start
+## What it does
 
-### Install
-Download `WordPulse-Setup-<version>.exe` from [Releases](../../releases) and run it. It installs just for you, with no admin rights needed, and offers a Start menu shortcut, start-with-Windows and the screensaver. You can also run the standalone `WordPulse.exe`. Either way it needs the Microsoft Edge WebView2 Runtime, which comes with Windows 10 and 11.
+- **Lyrics on your desktop.** WordPulse lives behind your desktop icons, like a live wallpaper. When music plays, the words appear; when it stops, your desktop looks normal again. No windows to manage; it sits in the tray.
+- **Word by word, in time.** It uses real word timing where available and estimates the rest from each song's singing pace. If a song is off, tap along once to sync it perfectly, and it remembers.
+- **16 styles.** Ship, Fisheye, Fisheye Visual, Visual, Pop, Stamp, Line, Orbit, Inkblot, Squeeze, Remold, Constellation, Branches, Web, Code and Code Visual.
+- **Mood that follows the music.** It listens to the beat (on your PC only) and reads the song's speed and genre, then picks a look: Neon for rap and EDM, Bright for pop, Heavy for rock, Smooth for R&B, Soft for ballads. Words pulse on the beat.
+- **Never the same twice.** Variety gives every song its own style, colour shift, tilt and motion, and Lively gives the chorus a look of its own.
+- **Fullscreen views.** Lyrics, a now-playing card, or the album cover filling the screen with the lyrics on top. Real play, pause and skip controls for your music app.
+- **Light enough to leave on.** About 3% of one CPU core when music is paused. It steps aside during games and fullscreen video, and has a frame-rate setting for laptops.
+- **Works offline** for songs you've played before, because lyrics are saved as you listen.
 
-On first launch a short welcome explains the tray icon and shortcuts. After that, click the tray icon for **Settings**.
+<table>
+<tr>
+<td><img src="docs/media/player.png" alt="Fullscreen player view"><br><sub><b>Player</b>: now-playing card with controls</sub></td>
+<td><img src="docs/media/album-art.png" alt="Album art view"><br><sub><b>Album art</b>: the cover fills the screen</sub></td>
+</tr>
+<tr>
+<td><img src="docs/media/constellation.png" alt="Constellation style"><br><sub><b>Constellation</b>: words become stars</sub></td>
+<td><img src="docs/media/code.png" alt="Code Visual style"><br><sub><b>Code Visual</b>: the line types itself out</sub></td>
+</tr>
+</table>
 
-### Build it yourself
-```powershell
-powershell -ExecutionPolicy Bypass -File build.ps1
-# -> dist\WordPulse.exe, dist\WordPulse.scr and, if Inno Setup 6 is installed, dist\WordPulse-Setup-<version>.exe
-```
-To sign the builds, set `WORDPULSE_SIGN_PFX` (and `WORDPULSE_SIGN_PASSWORD`) to your code-signing certificate before running the script.
+## Install
 
-### Run from source
-```powershell
-python run_wordpulse.py                 # on the desktop (default)
-python run_wordpulse.py --demo          # demo songs
-python run_wordpulse.py --mode overlay  # floating window
-```
+1. Download **`WordPulse-Setup-1.0.0.exe`** from [Releases](https://github.com/BhavyaKarnawat/wordpulse/releases/latest). There's also a portable `WordPulse.exe` if you'd rather not install.
+2. Run it. It installs just for you (no admin rights needed) and can start with Windows.
+3. Play a song. That's it.
 
-Command-line options:
-```text
-  --demo                Offline demo mode with the built-in songs
-  --style {ship,fisheye,fisheye_visual,visual,pop,stamp,line,orbit,inkblot,squeeze,remold}
-  --mode {wallpaper,fullscreen,overlay,desktop,lockscreen}   (default: wallpaper)
-  --desktop             Floating window mode
-  --pin                 Keep the floating window on top
-  --offset OFFSET       Timing offset in milliseconds
-  --no-tray             No tray icon
-  --no-keep-awake       Let the display sleep while music plays
-```
-Developer switches:
-- `WORDPULSE_DEBUG=1` logs frame timing and layout checks every 10 seconds.
-- `WORDPULSE_DEMO=1` plays the demo songs, including in screensaver mode.
-- `WORDPULSE_FAKE_BPM=128` fakes a beat, to try the beat effects without audio.
+> **"Windows protected your PC"?** WordPulse isn't code-signed yet (certificates cost money), so SmartScreen warns about new downloads. Click **More info** › **Run anyway**. The source is all here, and every release lists SHA-256 checksums.
 
-### Where things are stored
-| What | Where |
-|------|-------|
-| Settings, per-song timing and mood, genre tags | `%APPDATA%\WordPulse\` |
-| Logs | `%APPDATA%\WordPulse\logs\` |
-| Saved lyrics and your tapped timings | `%USERPROFILE%\.wordpulse\lyrics_cache\` (up to 4,000 songs; taps and imported lyrics are never removed) |
+Needs Windows 10 or 11 with the Microsoft Edge WebView2 Runtime (built into Windows 11; WordPulse links you to it if it's missing).
 
----
+## Using it
 
-## ⌨️ Controls
+Click the **tray icon** (by the clock) for Settings: style, mood, colours, fonts, position, monitor, background, frame rate and more.
 
-The tray menu has everything: style, display mode, timing offset, tap to sync, start with Windows, demo mode, and quit. In fullscreen and floating modes you can also use:
+| Shortcut (works anywhere) | |
+|---|---|
+| <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>L</kbd> | Show / hide the lyrics |
+| <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> | Next style |
+| <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>←</kbd> / <kbd>→</kbd> | Words earlier / later for this song (remembered) |
+| <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd> | Open settings |
 
-| Key | Action |
-|-----|--------|
-| <kbd>1</kbd>–<kbd>8</kbd> | Ship, Fisheye, Fisheye Visual, Visual, Pop, Stamp, Line, Orbit |
-| <kbd>9</kbd> / <kbd>0</kbd> / <kbd>-</kbd> | Inkblot, Squeeze, Remold |
-| <kbd>F11</kbd> / <kbd>Tab</kbd> | Cycle display mode |
-| <kbd>T</kbd> | Pin on top |
-| <kbd>Space</kbd> | Play / pause (demo) |
-| <kbd>N</kbd> / <kbd>P</kbd> | Next / previous (demo) |
-| <kbd>D</kbd> | Toggle demo mode |
+In fullscreen or the floating window: <kbd>Space</kbd> play/pause, <kbd>←</kbd>/<kbd>→</kbd> previous/next, <kbd>L</kbd> switch view, <kbd>F11</kbd> change mode, <kbd>1</kbd>–<kbd>9</kbd> styles.
 
----
+**Lyrics wrong or out of sync?** Settings › This song lets you pick another version, paste your own, or open tap-to-sync: press <kbd>Space</kbd> on every word as it's sung.
 
-## 🧪 Testing & Verification
+**Screensaver:** tick it in the installer, or right-click `WordPulse.scr` › Install.
 
-WordPulse includes an automated test suite:
+## Privacy
+
+No accounts, no ads, no telemetry. What WordPulse does:
+
+| What | Why | What's sent |
+|---|---|---|
+| Reads the media session Windows shares | to know the song and its position | nothing |
+| Listens to the audio that's playing | beat and tempo for the mood looks | nothing (analysed in memory, never saved) |
+| [LRCLIB](https://lrclib.net) | synced lyrics | song title and artist |
+| [MusicBrainz](https://musicbrainz.org) | genre tags for the mood | artist |
+| Apple iTunes search | sharp album covers (can be turned off) | song title and artist |
+| GitHub | update check (only if you turn it on) | nothing personal |
+
+Everything else stays on your PC in `%APPDATA%\WordPulse` and `%USERPROFILE%\.wordpulse`.
+
+## FAQ
+
+**Does every song have lyrics?** Most popular songs do. When LRCLIB has none, WordPulse says so, and you can paste lyrics and tap-sync them.
+
+**Can it show on the lock screen?** Windows doesn't let apps draw on the real lock screen. The screensaver and fullscreen modes give you the same look.
+
+**Will it slow my PC down?** Paused, it uses about 3% of one core. While words animate it uses more (30 fps on the desktop by default); set Frame rate to Battery for less. It stops drawing during games and fullscreen video.
+
+**Multiple monitors?** Pick a monitor, or "All displays", in Settings › Display.
+
+## Build from source
 
 ```powershell
-python -m pytest tests/
+git clone https://github.com/BhavyaKarnawat/wordpulse.git
+cd wordpulse
+python -m pip install -r requirements-dev.txt
+python run_wordpulse.py --demo          # try it with the demo songs
+python -m pytest -q                     # run the tests
+powershell -ExecutionPolicy Bypass -File build.ps1   # exe, screensaver and installer (needs Inno Setup 6)
 ```
 
-Test coverage includes:
-- Enhanced LRC syllable parsing & timestamp calculations
-- Heuristic syllable & timing interpolation for line-synced lyrics
-- Semantic icon/emoji mapping across 800+ words
-- GSMTC media session tracking & clock extrapolation
-- Album art color quantization & high-contrast WCAG palette generation
-- Windows sleep prevention (`SetThreadExecutionState`)
-- Full end-to-end integration flows and UI asset validation
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how it fits together and how to add a style.
 
+## Credits
+
+Lyrics from [LRCLIB](https://lrclib.net), genres from [MusicBrainz](https://musicbrainz.org). Built with [pywebview](https://pywebview.flowrl.com), [PyAudioWPatch](https://github.com/s0d3s/PyAudioWPatch), [pystray](https://github.com/moses-palmer/pystray), NumPy and Pillow. Lyrics belong to their writers; WordPulse bundles none and only shows what's fetched for the song you're playing.
+
+## License
+
+[MIT](LICENSE). Free to use, share and build on.

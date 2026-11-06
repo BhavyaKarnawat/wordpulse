@@ -1,0 +1,45 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting! The log file helps a lot. Open it from the tray menu (Open Logs Folder) or at `%APPDATA%\WordPulse\logs\wordpulse.log`.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Play a song in Spotify
+        2. Switch to the Constellation style
+        3. ...
+  - type: input
+    id: version
+    attributes:
+      label: WordPulse version
+      description: Settings › About shows it.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 24H2"
+  - type: dropdown
+    id: player
+    attributes:
+      label: Music app
+      options: [Spotify, Apple Music, YouTube Music (browser), Tidal, Other]
+  - type: textarea
+    id: log
+    attributes:
+      label: Log (last 30 lines)
+      render: text

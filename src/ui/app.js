@@ -1282,8 +1282,13 @@
 
     slots.forEach(sl => {
       let el = live.get(sl.key);
+      // the same key can change kind (e.g. a "next line" preview word becoming a star or a code token):
+      // elements are built per kind, so rebuild instead of reusing the wrong structure
+      const kind = sl.kind || (sl.node ? 'node' : sl.tok ? 'tok' : 'w');
+      if (el && el.dataset.kind !== kind) { el.remove(); live.delete(sl.key); el = null; }
       if (!el) {
         el = makeWord(sl);
+        el.dataset.kind = kind;
         // start from the style's entry state (below / scaled / faded...), then glide in
         place(el, Object.assign({}, sl, enterState(sl), { role: sl.role === 'active' ? 'ghost' : sl.role }), true);
         el.classList.toggle('ghost', sl.role === 'active' || sl.role === 'ghost');

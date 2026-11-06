@@ -1,9 +1,9 @@
-pywebview>=5.0.0
-winsdk>=1.0.0b10
-syncedlyrics>=1.0.0
-pillow>=10.0.0
-pystray>=0.19.5
-numpy>=1.26
-PyAudioWPatch>=0.2.12
-pytest>=8.0.0
-
+# Runtime dependencies (versions tested with WordPulse 1.0.0)
+pywebview==6.2.1
+pythonnet==3.2.1
+winsdk==1.0.0b10
+syncedlyrics==1.0.1
+pillow==12.2.0
+pystray==0.19.5
+numpy==2.4.6
+PyAudioWPatch==0.2.12.9

@@ -1,0 +1,15 @@
+name: Feature idea
+description: A new style, setting or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: A short description, and a sketch or video link if it's visual.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would it help?
