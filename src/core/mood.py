@@ -13,7 +13,7 @@ log = logging.getLogger("wordpulse")
 
 MOODS = ["NEON", "BRIGHT", "HEAVY", "SMOOTH", "SOFT"]
 MOOD_LABELS = {"NEON": "Neon", "BRIGHT": "Bright", "HEAVY": "Heavy", "SMOOTH": "Smooth", "SOFT": "Soft"}
-DEFAULT_MOOD_STYLES = {"NEON": "SQUEEZE", "BRIGHT": "POP", "HEAVY": "STAMP", "SMOOTH": "REMOLD", "SOFT": "FISHEYE"}
+from src.models.settings import DEFAULT_MOOD_STYLES  # noqa: E402  (pools of styles per mood)
 
 HEAVY_TAGS = {"metal", "heavy metal", "hard rock", "punk", "punk rock", "grunge", "metalcore", "nu metal",
               "thrash metal", "death metal", "hardcore", "alternative metal", "rock"}

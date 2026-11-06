@@ -103,6 +103,9 @@
   .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; }
   kbd { font: 600 12px var(--ui); padding: 2px 7px; border-radius: 5px; background: rgba(255,255,255,.1); border-bottom: 1px solid rgba(255,255,255,.2); white-space: nowrap; }
   .warn { color: #ffb86b; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { border: 1px solid var(--line); background: #222228; border-radius: 999px; padding: 5px 11px; cursor: pointer; color: var(--dim); font-size: 12.5px; }
+  .chip.on { background: color-mix(in oklab, var(--hl) 25%, transparent); border-color: var(--hl); color: var(--text); }
   .beatbar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.07); margin-top: 12px; overflow: hidden; }
   .beatbar i { display: block; height: 100%; width: 100%; background: var(--hl); transform-origin: left; transform: scaleX(0); }
 
@@ -253,6 +256,10 @@
         <div class="seg" data-setting="reduce_motion"><button data-v="system">Follow Windows</button><button data-v="on">On</button><button data-v="off">Off</button></div>
       </div>
       <div class="row">
+        <div class="lbl"><b>Variety</b><span>Each song gets its own twist: style from the mood's pool, colour shift, tilt, entrance direction, drift. Lively also gives the chorus its own style.</span></div>
+        <div class="seg" data-setting="variety"><button data-v="off">Off</button><button data-v="subtle">Subtle</button><button data-v="lively">Lively</button></div>
+      </div>
+      <div class="row">
         <div class="lbl"><b>Battery saver</b><span>Turn off the lens and ink effects on battery.</span></div>
         <label class="sw"><input type="checkbox" data-setting="battery_saver"><i></i></label>
       </div>
@@ -291,9 +298,9 @@
       </div>
     </div>
 
-    <h2>Style for each mood</h2>
+    <h2>Styles for each mood</h2>
     <div class="card" id="moodStyles"></div>
-    <p class="note">Mood styles take over from your chosen style while Full is on, unless Shuffle is on. Audio is analysed on this PC only and never saved or sent anywhere.</p>
+    <p class="note">Tick the styles each mood may use; with Variety on, every song picks one of them (Variety off uses the first). Mood styles take over from your chosen style while Full is on, unless Shuffle is on. Audio is analysed on this PC only and never saved or sent anywhere.</p>
   </section>
 
   <!-- BEHAVIOUR -->
@@ -552,16 +559,24 @@
     fill($('songMood'), [['', 'Automatic']].concat(moods.map(m => [m.id, m.label])));
     if (document.activeElement !== $('songMood')) $('songMood').value = M.song_mood || '';
     $('songMood').disabled = !t;
-    const styleOpts = (M.styles || []).map(st => `<option value="${st.id}">${esc(st.label)}</option>`).join('');
     if ($('moodStyles').childElementCount !== moods.length) {
       $('moodStyles').innerHTML = moods.map(m => `
-        <div class="row"><div class="lbl"><b>${esc(m.label)}</b><span>${esc(MOOD_HINT[m.id] || '')}</span></div>
-        <select data-mood-style="${m.id}">${styleOpts}</select></div>`).join('');
-      $$('[data-mood-style]').forEach(sel => sel.addEventListener('change', () => {
-        set('mood_styles', Object.assign({}, S.mood_styles, { [sel.dataset.moodStyle]: sel.value }));
+        <div class="row" style="display:block">
+          <div class="lbl"><b>${esc(m.label)}</b><span>${esc(MOOD_HINT[m.id] || '')}</span></div>
+          <div class="chips">${(M.styles || []).map(st => `<button class="chip" data-mood="${m.id}" data-st="${st.id}" aria-pressed="false">${esc(st.label)}</button>`).join('')}</div>
+        </div>`).join('');
+      $$('.chip').forEach(b => b.addEventListener('click', () => {
+        const mood = b.dataset.mood;
+        const pool = [...((S.mood_styles || {})[mood] || [])];
+        const i = pool.indexOf(b.dataset.st);
+        if (i >= 0) { if (pool.length === 1) return; pool.splice(i, 1); } else pool.push(b.dataset.st);
+        set('mood_styles', Object.assign({}, S.mood_styles, { [mood]: pool }));
       }));
     }
-    $$('[data-mood-style]').forEach(sel => { if (document.activeElement !== sel) sel.value = (S.mood_styles || {})[sel.dataset.moodStyle]; });
+    $$('.chip').forEach(b => {
+      const on = ((S.mood_styles || {})[b.dataset.mood] || []).includes(b.dataset.st);
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+    });
     beatPeriod = (M.beat && M.beat.period) ? M.beat.period * 1000 : 0;
     if (M.beat && M.beat.beat_age != null) beatLast = performance.now() - M.beat.beat_age * 1000;
   }

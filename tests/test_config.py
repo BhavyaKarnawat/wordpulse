@@ -91,8 +91,13 @@ def test_settings_payload_has_what_the_window_needs():
 def test_mood_settings_validate_and_persist(tmp_path):
     store = ConfigStore(tmp_path)
     c = AppCoordinator(settings=AppSettings(mock_mode=True), config=store)
-    p = c.set_setting("mood_styles", {"NEON": "pop", "BOGUS": "SHIP"})
-    assert p["settings"]["mood_styles"]["NEON"] == "POP"
+    p = c.set_setting("mood_styles", {"NEON": "pop", "BOGUS": "SHIP", "SOFT": ["line", "LINE", "orbit"], "HEAVY": []})
+    assert p["settings"]["mood_styles"]["NEON"] == ["POP"]
+    assert p["settings"]["mood_styles"]["SOFT"] == ["LINE", "ORBIT"]          # de-duplicated
+    assert p["settings"]["mood_styles"]["HEAVY"] == ["STAMP", "SQUEEZE", "SHIP", "CODE"]   # empty -> default pool
+    with pytest.raises(ValueError):
+        c.set_setting("variety", "chaotic")
+    assert c.set_setting("variety", "lively")["settings"]["variety"] == "lively"
     assert "BOGUS" not in p["settings"]["mood_styles"]
     with pytest.raises(ValueError):
         c.set_setting("auto_mood", "sometimes")

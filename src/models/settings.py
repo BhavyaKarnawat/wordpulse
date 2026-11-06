@@ -16,6 +16,11 @@ class DisplayStyle(Enum):
     INKBLOT = "INKBLOT"               # Old word melts into the new one like ink
     SQUEEZE = "SQUEEZE"               # New word squeezes the old one flat
     REMOLD = "REMOLD"                 # Old word's letters rearrange into the new word
+    CONSTELLATION = "CONSTELLATION"   # Words become stars joined by lines; the map pans to the sung star
+    BRANCHES = "BRANCHES"             # Words grow upward like a branching plant
+    WEB = "WEB"                       # Mind-map: sung word in the middle, earlier words orbit on rings
+    CODE = "CODE"                     # The line types itself out like code in an editor
+    CODE_VISUAL = "CODE_VISUAL"       # Code, with each word's icon as a comment
 
 
 class DisplayMode(Enum):
@@ -30,7 +35,9 @@ SHUFFLE_MODES = ["off", "song", "line"]
 REDUCE_MOTION = ["system", "on", "off"]
 AUTO_MOOD = ["off", "beats", "full"]
 FULLSCREEN_BG = ["black", "wallpaper", "album"]
-DEFAULT_MOOD_STYLES = {"NEON": "SQUEEZE", "BRIGHT": "POP", "HEAVY": "STAMP", "SMOOTH": "REMOLD", "SOFT": "FISHEYE"}
+# each mood has a pool of styles that suit it; with Variety on, every song picks one
+DEFAULT_MOOD_STYLES = {"NEON": ["SQUEEZE", "POP", "STAMP", "INKBLOT", "CODE_VISUAL"], "BRIGHT": ["POP", "LINE", "VISUAL", "ORBIT", "WEB"], "HEAVY": ["STAMP", "SQUEEZE", "SHIP", "CODE"], "SMOOTH": ["REMOLD", "ORBIT", "LINE", "FISHEYE", "WEB", "BRANCHES"], "SOFT": ["FISHEYE", "LINE", "REMOLD", "SHIP", "CONSTELLATION", "BRANCHES"]}
+VARIETY = ["off", "subtle", "lively"]
 
 
 @dataclass
@@ -69,7 +76,8 @@ class AppSettings:
     # mood (tempo / energy / genre)
     auto_mood: str = "full"            # off, beats (on-beat effects only), full (also style + look)
     beat_strength: float = 1.0         # 0..1.5
-    mood_styles: dict = field(default_factory=lambda: dict(DEFAULT_MOOD_STYLES))
+    mood_styles: dict = field(default_factory=lambda: {k: list(v) for k, v in DEFAULT_MOOD_STYLES.items()})
+    variety: str = "subtle"            # off, subtle, lively: per-song randomness so a session doesn't repeat itself
 
     # behaviour
     keep_awake: bool = True

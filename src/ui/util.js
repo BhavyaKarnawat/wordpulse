@@ -55,5 +55,23 @@
     return { lines, duration: t + 1 };
   }
 
-  window.WVUtil = { parseColor, toHsl, moodColor, buildPreviewLyrics };
+  // rotate a colour's hue by `deg` (per-song colour variety)
+  function hueShift(color, deg) {
+    if (!deg) return color;
+    const m = /^hsl\(([\d.]+) ([\d.]+)% ([\d.]+)%\)$/.exec(color);
+    const [h, s, l] = m ? [+m[1], +m[2] / 100, +m[3] / 100] : toHsl(parseColor(color));
+    return `hsl(${(((h + deg) % 360) + 360) % 360} ${Math.round(s * 100)}% ${Math.round(l * 100)}%)`;
+  }
+
+  // lines that repeat (the chorus, a hook): the same words twice or more
+  function chorusLines(lines) {
+    const norm = t => String(t || '').toLowerCase().replace(/[^a-z0-9\u00c0-\uffff ]+/g, '').replace(/\s+/g, ' ').trim();
+    const count = new Map();
+    lines.forEach(l => { const k = norm(l.text); if (k.length >= 8) count.set(k, (count.get(k) || 0) + 1); });
+    const out = new Set();
+    lines.forEach((l, i) => { if ((count.get(norm(l.text)) || 0) >= 2) out.add(i); });
+    return out;
+  }
+
+  window.WVUtil = { parseColor, toHsl, moodColor, hueShift, chorusLines, buildPreviewLyrics };
 })();

@@ -95,8 +95,8 @@ body.mode-wallpaper .lens::after { display: none; }
   display: flex; align-items: center; gap: .18em;
   white-space: nowrap;
   font-size: var(--u);
-  font-weight: 800;
-  letter-spacing: -0.035em;
+  font-weight: var(--v-weight, 800);
+  letter-spacing: calc(-0.035em + var(--v-spacing, 0em));
   line-height: 1;
   transform:
     translate(-50%, -50%)
@@ -125,6 +125,7 @@ body.mode-wallpaper .lens::after { display: none; }
 }
 .w.active { color: #fff; }
 .w.active .t::before { transform: scaleX(1); }
+.w .t::before, .rm-slab { rotate: var(--v-tilt, 0deg); }   /* per-song slab tilt (Variety) */
 .w:not(.active) .t::before { transform-origin: right center; transition-duration: .14s; }
 
 .w.ghost { color: var(--secondary); }
@@ -147,6 +148,17 @@ body.style-fisheye-visual .w .ic { display: inline-block; }
 
 /* ---------- Ship: a wall drifting in three dimensions ---------- */
 body.style-ship .drift { animation: ship-drift 18s ease-in-out infinite alternate; }
+body.style-ship[data-drift="1"] .drift { animation-name: ship-drift-b; animation-duration: 22s; }
+body.style-ship[data-drift="2"] .drift { animation-name: ship-drift-c; animation-duration: 15s; }
+@keyframes ship-drift-b {
+  0%   { transform: rotateX(calc(-12deg * var(--motion, 1))) rotateY(calc(16deg * var(--motion, 1)))  rotateZ(calc(2deg * var(--motion, 1)))  translateZ(-50px); }
+  50%  { transform: rotateX(calc(4deg * var(--motion, 1)))   rotateY(calc(-8deg * var(--motion, 1)))  rotateZ(calc(-1deg * var(--motion, 1))) translateZ(0); }
+  100% { transform: rotateX(calc(14deg * var(--motion, 1)))  rotateY(calc(-20deg * var(--motion, 1))) rotateZ(calc(-3deg * var(--motion, 1))) translateZ(-30px); }
+}
+@keyframes ship-drift-c {
+  0%   { transform: rotateX(calc(8deg * var(--motion, 1)))  rotateY(calc(-24deg * var(--motion, 1))) translateZ(-20px); }
+  100% { transform: rotateX(calc(-6deg * var(--motion, 1))) rotateY(calc(24deg * var(--motion, 1)))  translateZ(-70px); }
+}
 @keyframes ship-drift {
   0%   { transform: rotateX(calc(16deg * var(--motion, 1)))  rotateY(calc(-18deg * var(--motion, 1))) rotateZ(calc(-2deg * var(--motion, 1))) translateZ(-40px); }
   50%  { transform: rotateX(calc(6deg * var(--motion, 1)))   rotateY(calc(10deg * var(--motion, 1)))  rotateZ(calc(1deg * var(--motion, 1)))  translateZ(0); }
@@ -274,6 +286,53 @@ body[data-mood="smooth"] .w, body[data-mood="smooth"] .rm { text-shadow: 0 0 .35
 /* Soft: muted and slow */
 body[data-mood="soft"] .w { transition-duration: .95s, .8s; font-weight: 700; }
 body[data-mood="soft"] .w.ghost { opacity: calc(var(--o, 1) * .6); }
+
+/* ---------- Graph styles: Constellation, Branches, Web ---------- */
+.ln {
+  position: absolute; left: 0; top: 0; height: max(1px, calc(var(--u) * .012));
+  width: var(--len, 0px); transform-origin: 0 50%;
+  transform: translate(var(--x, 0px), var(--y, 0px)) rotate(var(--ang, 0deg));
+  background: color-mix(in oklab, var(--lyric) 70%, transparent); opacity: var(--o, 1);
+  transition: transform .55s var(--glide), width .55s var(--glide), opacity .4s ease;
+  pointer-events: none;
+}
+body.style-branches .ln { background: color-mix(in oklab, var(--hl) 55%, var(--lyric)); }
+/* a node is a star with its word tucked underneath; the star itself sits exactly on the point */
+.w.node {
+  flex-direction: column; align-items: center; gap: .08em; font-weight: 700; letter-spacing: 0;
+  transform: translate(-50%, -.35em) translate3d(var(--x, 0px), var(--y, 0px), var(--z, 0px)) scale(var(--s, 1));
+  transform-origin: 50% .35em;
+}
+.w.node .t::before { display: none; }                     /* no slab: the star marks the word */
+.w.node .star { font-size: .7em; height: 1em; line-height: 1; color: var(--lyric); }
+.w.node .t { font-size: .9em; line-height: 1.05; }
+.w.node.active { color: #fff; }
+.w.node.active .star { color: var(--hl); text-shadow: 0 0 .25em var(--hl), 0 0 .6em var(--hl);
+  transform: scale(calc(1.4 + var(--beat, 0) * .5)); transition: transform .12s ease-out; }
+.w.node.past { color: color-mix(in oklab, var(--lyric) 85%, transparent); }
+body.style-web .w.node.active .star { transform: scale(calc(1.9 + var(--beat, 0) * .6)); }
+
+/* ---------- Code styles: the line types itself out ---------- */
+body.style-code .w { font-family: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", monospace; font-weight: 500; letter-spacing: 0; }
+.w.tok { transform: translate(0, -50%) translate3d(var(--x, 0px), var(--y, 0px), 0) scale(var(--s, 1)); transform-origin: 0 50%; }
+.w.tok .t::before { display: none; }
+.w.tok-kw { color: var(--hl); }
+.w.tok-id { color: color-mix(in oklab, var(--lyric) 40%, white); }
+.w.tok-str { color: color-mix(in oklab, #9be28c 75%, var(--lyric)); }
+.w.tok-fn { color: color-mix(in oklab, #7cc4ff 75%, var(--lyric)); }
+.w.tok-num { color: color-mix(in oklab, #ffcf6b 80%, var(--lyric)); }
+.w.gutter { color: color-mix(in oklab, var(--lyric) 45%, transparent); white-space: pre; }
+.w.gutter.comment { color: color-mix(in oklab, var(--lyric) 55%, transparent); font-style: italic; }
+.w.tok.active .t { animation: code-type var(--wipe, .3s) steps(var(--chars, 6), end) both; }
+@keyframes code-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.w.tok.active { text-shadow: 0 0 .3em color-mix(in oklab, currentColor 40%, transparent); }
+.caret {
+  position: absolute; left: 0; top: 0; width: calc(var(--u) * var(--s, .4) * .09); height: calc(var(--u) * var(--s, .4) * 1.05);
+  transform: translate(0, -50%) translate(var(--x, 0px), var(--y, 0px)); background: var(--hl);
+  transition: transform .18s var(--glide); animation: caret-blink 1s steps(1) infinite; opacity: var(--o, 1);
+}
+@keyframes caret-blink { 50% { opacity: 0; } }
+body.idle .caret { animation-play-state: paused; }
 
 /* ---------- Auto-hiding chrome ---------- */
 .chrome {

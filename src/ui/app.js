@@ -42,7 +42,7 @@
   const btnDemo = document.getElementById('btnDemoToggle');
   const demoBadge = document.getElementById('demoBadge');
 
-  const { moodColor, buildPreviewLyrics } = window.WVUtil;   // util.js
+  const { moodColor, hueShift, chorusLines, buildPreviewLyrics } = window.WVUtil;   // util.js
   const api = () => (window.pywebview && window.pywebview.api) || null;
   const call = (name, ...args) => { const a = api(); if (a && a[name]) a[name](...args).catch(() => {}); };
 
@@ -108,13 +108,16 @@
     SHIP: 'style-ship', FISHEYE: 'style-fisheye', FISHEYE_VISUAL: 'style-fisheye-visual', VISUAL: 'style-visual',
     POP: 'style-pop', STAMP: 'style-stamp', LINE: 'style-line', ORBIT: 'style-orbit',
     INKBLOT: 'style-inkblot', SQUEEZE: 'style-squeeze', REMOLD: 'style-remold',
+    CONSTELLATION: 'style-constellation', BRANCHES: 'style-branches', WEB: 'style-web',
+    CODE: 'style-code', CODE_VISUAL: 'style-code style-code-visual',
   };
 
   function setStyle(s, notify = true) {
     if (!STYLE_CLASS[s]) s = 'SHIP';
     style = s;
-    Object.values(STYLE_CLASS).forEach(c => body.classList.remove(c));
-    body.classList.add(STYLE_CLASS[s]);
+    // a style may use more than one class (Code Visual = the Code look + icons)
+    Object.values(STYLE_CLASS).forEach(c => body.classList.remove(...c.split(' ')));
+    body.classList.add(...STYLE_CLASS[s].split(' '));
     segs.forEach(b => b.classList.toggle('active', b.dataset.style === s));
     layoutKey = '';
     if (notify) call('set_display_style', s);
@@ -177,7 +180,8 @@
       root.removeProperty('--lyric');
       root.removeProperty('--secondary');
       const base = (lastPalette && lastPalette.highlight) || '#ff2d6f';
-      root.setProperty('--hl', activeMood() ? moodColor(base, activeMood()) : base);
+      const tuned = activeMood() ? moodColor(base, activeMood()) : base;
+      root.setProperty('--hl', variant && variant.hue ? hueShift(tuned, variant.hue) : tuned);
     }
   }
 
@@ -269,7 +273,7 @@
     baseStyle = s.display_style || baseStyle;
     const mood = activeMood();
     body.dataset.mood = mood ? mood.toLowerCase() : '';
-    const moodStyle = mood && (s.shuffle || 'off') === 'off' && s.mood_styles ? s.mood_styles[mood] : '';
+    const moodStyle = mood && (s.shuffle || 'off') === 'off' && s.mood_styles ? moodStyleFor(mood) : '';
     if (moodStyle && STYLE_CLASS[moodStyle]) {
       if (style !== moodStyle) setStyle(moodStyle, false);
     } else if ((s.shuffle || 'off') === 'off' || s.display_style !== prev.display_style || s.shuffle !== prev.shuffle
@@ -278,6 +282,72 @@
     }
     applyPalette();
     computeUnit();
+  }
+
+  // ---------- Variety: per-song randomness so a session doesn't repeat itself ----------
+  let variant = null;
+  const recentStyles = [];
+  let moodPick = { key: '', style: '', chorus: '' };
+  let chorus = new Set();
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  function makeVariant() {
+    const level = cfg.variety || 'subtle';
+    if (level === 'off') return { level, tilt: 0, hue: 0, weight: 800, spacing: 0, motion: 1, enter: [0, 1], dir: 1, drift: 0, scatter: 1 };
+    const lively = level === 'lively';
+    return {
+      level,
+      tilt: rnd(-1, 1) * (lively ? 3.5 : 1.8),                       // slab tilt, degrees
+      hue: rnd(-1, 1) * (lively ? 22 : 10),                          // colour shift, degrees of hue
+      weight: pick(lively ? [700, 800, 900] : [800, 800, 900]),
+      spacing: rnd(-0.015, lively ? 0.02 : 0.01),                    // extra letter spacing, em
+      motion: rnd(lively ? 0.75 : 0.88, lively ? 1.3 : 1.12),         // how far / fast words travel
+      enter: lively ? pick([[0, 1], [0, -1], [1, 0], [-1, 0]]) : pick([[0, 1], [0, 1], [0, -1]]),
+      dir: Math.random() < 0.5 ? 1 : -1,                             // Orbit turn / Squeeze push direction
+      drift: Math.floor(Math.random() * 3),                          // which Ship drift path
+      scatter: rnd(0.7, lively ? 1.5 : 1.15),                        // how wildly Stamp scatters
+    };
+  }
+  function applyVariant() {
+    const st = body.style;
+    st.setProperty('--v-tilt', (variant ? variant.tilt : 0).toFixed(2) + 'deg');
+    st.setProperty('--v-weight', variant ? variant.weight : 800);
+    st.setProperty('--v-spacing', (variant ? variant.spacing : 0).toFixed(3) + 'em');
+    body.dataset.drift = variant ? variant.drift : 0;
+    applyPalette();
+  }
+  function poolFor(mood) {
+    const p = (cfg.mood_styles || {})[mood];
+    return (Array.isArray(p) ? p : [p]).filter(x => STYLE_CLASS[x]);
+  }
+  // one style per song (and mood) from the mood's pool, avoiding the last few used
+  function moodStyleFor(mood) {
+    const key = currentTrackId + '|' + mood + '|' + (cfg.variety || '');
+    if (moodPick.key !== key) {
+      const pool = poolFor(mood);
+      let first = '';
+      if (pool.length && (cfg.variety || 'subtle') === 'off') first = pool[0];
+      else if (pool.length) {
+        const fresh = pool.filter(x => !recentStyles.includes(x));
+        first = pick(fresh.length ? fresh : pool);
+      }
+      const others = pool.filter(x => x !== first);
+      const freshOthers = others.filter(x => !recentStyles.includes(x));
+      moodPick = { key, style: first, chorus: freshOthers.length ? pick(freshOthers) : others.length ? pick(others) : first };
+      if (first) {
+        recentStyles.push(first);
+        while (recentStyles.length > Math.min(3, Math.max(1, pool.length - 1))) recentStyles.shift();
+      }
+    }
+    return moodPick.style;
+  }
+  // Lively: the chorus gets its own style from the pool so verse and chorus feel different
+  function chorusSwitch(loc) {
+    if ((cfg.variety || 'subtle') !== 'lively' || !activeMood() || (cfg.shuffle || 'off') !== 'off' || loc.kind !== 'word') return;
+    moodStyleFor(activeMood());
+    const want = chorus.has(loc.li) ? moodPick.chorus : moodPick.style;
+    if (want && STYLE_CLASS[want] && want !== style) setStyle(want, false);
   }
 
   // ---------- Shuffle ----------
@@ -306,6 +376,8 @@
     if (id !== currentTrackId) {          // new song: take its position as-is
       currentTrackId = id;
       statusUntil = performance.now() + 6000;
+      variant = makeVariant();
+      applyVariant();
       if (cfg.shuffle === 'song') pickShuffle();
       playing = t.status === 'PLAYING';
       basePos = t.position || 0;
@@ -346,6 +418,10 @@
       if (st.track && st.track.title) applyTrack(st.track);
       if (st.palette) applyPalette(st.palette);
       lyrics = st.lyrics || null;
+      chorus = lyrics && lyrics.lines ? chorusLines(lyrics.lines) : new Set();
+      // if most of the song repeats there's no verse/chorus contrast to show
+      if (lyrics && lyrics.lines && chorus.size > lyrics.lines.length * 0.6) chorus = new Set();
+      if (cfg.variety && (!variant || variant.level !== cfg.variety)) { variant = makeVariant(); applyVariant(); }
       layoutKey = '';
     } catch (e) {
       console.warn('get_state failed', e);
@@ -571,7 +647,7 @@
           slots.push(slot(li, k, W[k], 'past', {
             s: Math.min(0.5, fit(W[k].text, 0.28, 0.5)),
             x: Math.cos(ang) * rx * rad, y: area.centre + Math.sin(ang) * ry * rad,
-            r: (hash01(li * 31 + k) - 0.5) * 30, o: 0.42,
+            r: (hash01(li * 31 + k) - 0.5) * 30 * (variant ? variant.scatter : 1), o: 0.42,
           }));
         }
         slots.push(slot(li, wi, W[wi], 'active', {
@@ -616,7 +692,7 @@
         const R = Math.min(innerWidth * 0.34, unit * 3.6);
         const step = 0.5;
         W.forEach((w, k) => {
-          const th = (k - wi) * step;
+          const th = (k - wi) * step * (variant ? variant.dir : 1);
           if (Math.abs(th) > 1.45) return;
           const c = Math.cos(th);
           const role = k < wi ? 'past' : k === wi ? 'active' : 'ghost';
@@ -629,6 +705,15 @@
         return slots;
       }
 
+      case 'CONSTELLATION':
+      case 'BRANCHES':
+      case 'WEB':
+        return graphLayout(loc, area);
+
+      case 'CODE':
+      case 'CODE_VISUAL':
+        return codeLayout(loc, area);
+
       default: {
         // VISUAL: the two words before the sung word gather above it, the next one waits below
         if (wi >= 2) slots.push(slot(li, wi - 2, W[wi - 2], 'past', { s: Math.min(0.72, fit(W[wi - 2].text, 0.4, 0.72)), italic: true, r: -2.5 }));
@@ -640,35 +725,172 @@
     }
   }
 
+  // ---------- Graph styles: Constellation, Branches, Web ----------
+  // Positions are in "steps" (about one word apart); the view pans so the sung word stays centred.
+  function graphPoints(kind, li, wi, n) {
+    if (kind === 'WEB') {
+      // the sung word is the hub; earlier words sit on rings around it, newest closest
+      const pts = [];
+      for (let k = 0; k < n; k++) {
+        const back = wi - k;
+        if (back <= 0) { pts.push({ x: 0, y: 0, parent: -1 }); continue; }
+        const ring = Math.floor((back - 1) / 6);
+        const ang = back * 2.39996 + li * 0.9;          // golden angle keeps them spread out
+        const r = 1.7 + ring * 1.15;
+        pts.push({ x: Math.cos(ang) * r * 1.35, y: Math.sin(ang) * r * 0.85, parent: back <= 6 ? wi : -2, ring });
+      }
+      return pts;
+    }
+    const pts = [{ x: 0, y: 0, parent: -1 }];
+    let ang = hash01(li * 7 + 3) * Math.PI * 2;
+    for (let k = 1; k < n; k++) {
+      let parent = k - 1, len;
+      if (kind === 'BRANCHES') {
+        if (k >= 3 && k % 3 === 0) parent = k - 2;    // a fork every few words
+        ang = -Math.PI / 2 + (k % 2 ? 0.65 : -0.65) * (0.75 + hash01(li * 29 + k) * 0.5);
+        len = 1.35 + hash01(li * 41 + k) * 0.5;
+      } else {
+        ang += (hash01(li * 131 + k) - 0.5) * 2.4;     // a wandering path, like a star chart
+        len = 1.5 + hash01(li * 17 + k) * 1.2;
+      }
+      pts.push({ x: pts[parent].x + Math.cos(ang) * len, y: pts[parent].y + Math.sin(ang) * len, parent });
+    }
+    return pts;
+  }
+
+  function lineSlot(key, a, b, o) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    return { key, kind: 'line', text: '', icon: '', role: 'past', x: a.x, y: a.y, s: 1, r: 0, o,
+             len: Math.hypot(dx, dy), ang: Math.atan2(dy, dx) * 180 / Math.PI };
+  }
+
+  function graphLayout(loc, area) {
+    const { li, words: W, wi } = loc;
+    const pts = graphPoints(style, li, wi, W.length);
+    const step = unit * (style === 'WEB' ? 0.95 : 0.85);
+    const p0 = pts[wi];
+    // centre the sung *word* (its star sits just above it): the node block is ~1.73em tall,
+    // the star's centre is .35em from its top, so the word's middle is ~.52em below the star
+    const lift = unit * 0.6 * 0.515;
+    const P = k => ({ x: (pts[k].x - p0.x) * step, y: area.centre - lift + (pts[k].y - p0.y) * step });
+    const slots = [];
+    // older stars that have panned out of view fade away instead of sitting half-cut at the edge
+    const halfW = innerWidth * 0.46;
+    const onScreen = k => { const q = P(k); return Math.abs(q.x) < halfW && q.y > area.top + unit * 0.2 && q.y < area.bottom - unit * 0.35; };
+    const fade = k => (k !== wi && !onScreen(k)) ? 0 : Math.max(0.28, 1 - (wi - k) * (style === 'WEB' ? 0.07 : 0.06));
+    // lines first so the stars and words sit on top
+    for (let k = 0; k <= wi; k++) {
+      const p = pts[k];
+      if (style === 'WEB') {
+        if (k === wi) continue;
+        if (p.parent === wi) slots.push(lineSlot(`${li}:sp${k}`, P(wi), P(k), 0.55 * fade(k)));
+        const prev = k - 1;                                   // ring links between neighbours
+        if (prev >= 0 && pts[prev].ring === p.ring && prev !== wi) slots.push(lineSlot(`${li}:rg${k}`, P(prev), P(k), 0.3 * Math.min(fade(k), fade(prev))));
+      } else if (p.parent >= 0) {
+        slots.push(lineSlot(`${li}:ln${k}`, P(p.parent), P(k), 0.6 * Math.min(fade(k), fade(p.parent))));
+        if (style === 'CONSTELLATION' && k >= 2 && hash01(li * 53 + k) < 0.22) {
+          slots.push(lineSlot(`${li}:x${k}`, P(k - 2), P(k), 0.35 * Math.min(fade(k), fade(k - 2))));   // the odd extra link
+        }
+      }
+    }
+    for (let k = 0; k <= wi; k++) {
+      const q = P(k);
+      const active = k === wi;
+      slots.push(slot(li, k, W[k], active ? 'active' : 'past', {
+        node: true, x: q.x, y: q.y, s: active ? 0.6 : 0.3, o: active ? 1 : fade(k),
+      }));
+    }
+    return slots;
+  }
+
+  // ---------- Code styles: the line types itself out like code ----------
+  const TOKEN_KINDS = ['kw', 'id', 'id', 'str', 'fn', 'id', 'num'];
+  function codeLayout(loc, area) {
+    const { li, words: W, wi } = loc;
+    const all = (lyrics && lyrics.lines) || [];
+    const first = Math.max(0, li - 3);
+    const rows = [];
+    for (let r = first; r <= li; r++) {
+      const ws = r === li ? W : ((all[r] && all[r].words && all[r].words.length) ? all[r].words : [{ text: all[r] ? all[r].text : '' }]);
+      rows.push({ idx: r, ws });
+    }
+    const tokText = (w, i, r) => {
+      const kind = TOKEN_KINDS[Math.floor(hash01(r * 97 + i * 13) * TOKEN_KINDS.length)];
+      const t = caps(w.text);
+      return { kind, t: kind === 'str' ? `"${t}"` : kind === 'fn' ? `${t}()` : t };
+    };
+    const longest = rows.reduce((m, row) => Math.max(m, row.ws.reduce((n, w, i) => n + tokText(w, i, row.idx).t.length + 1, 0)), 10);
+    const CW = 0.6;                                         // monospace character width, in em
+    const s = Math.max(0.2, Math.min(0.44, (maxWordWidth() * 1.2) / (unit * CW * (longest + 6))));
+    const em = unit * s;
+    const lineH = em * 1.55;
+    const left = -(CW * em * (longest + 6)) / 2;
+    const slots = [];
+    rows.forEach((row, ri) => {
+      const current = row.idx === li;
+      const y = area.centre + (ri - (rows.length - 1)) * lineH;
+      slots.push({ key: `g${row.idx}`, kind: 'gutter', text: String(row.idx + 1).padStart(3, ' '), icon: '', role: 'past',
+                   x: left, y, s, r: 0, o: current ? 0.7 : 0.35 });
+      let col = 5;
+      row.ws.forEach((w, i) => {
+        if (current && i > wi) return;                        // not sung yet: not typed yet
+        const tk = tokText(w, i, row.idx);
+        const active = current && i === wi;
+        slots.push(Object.assign(slot(row.idx, i, { text: tk.t, icon: '' }, active ? 'active' : 'past', {
+          tok: tk.kind, x: left + col * CW * em, y, s, o: current ? 1 : 0.42,
+          wipe: active ? Math.max(0.12, (W[i + 1] ? W[i + 1].start_time : (W[i].end_time || W[i].start_time + 0.5)) - W[i].start_time) : 0,
+          chars: tk.t.length,
+        })));
+        col += tk.t.length + 1;
+        if (active) {
+          slots.push({ key: 'caret', kind: 'caret', text: '', icon: '', role: 'active', x: left + (col - 1) * CW * em + em * 0.08, y, s, r: 0, o: 1 });
+          if (style === 'CODE_VISUAL' && w.icon) {
+            slots.push({ key: `c${row.idx}:${i}`, kind: 'gutter', comment: true, text: `// ${w.icon}`, icon: '', role: 'past',
+                         x: left + (col + 1) * CW * em, y, s, r: 0, o: 0.85 });
+          }
+        }
+      });
+    });
+    return slots;
+  }
+
   // How a word arrives and departs, per style
   function enterState(sl) {
     if (reduceMotion()) return { o: 0 };
-    const m = cfg.motion ?? 1;
+    const m = (cfg.motion ?? 1) * (variant ? variant.motion : 1);
+    const [ex, ey] = variant ? variant.enter : [0, 1];
+    const dir = variant ? variant.dir : 1;
     const R = Math.min(innerWidth * 0.34, unit * 3.6) * m;
+    if (sl.kind === 'line') return { len: 0 };                 // lines draw themselves in
+    if (sl.kind === 'caret' || sl.kind === 'gutter' || sl.tok) return { o: 0 };
+    if (sl.node) return { s: sl.s * 0.4, o: 0 };
     switch (style) {
       case 'POP':   return { s: sl.s * 0.35, o: 0 };
       case 'INKBLOT': return { s: sl.s * 0.9, o: 0 };
-      case 'SQUEEZE': return { sx: 0.001, x: sl.x + (sl.wpx || 0) / 2, o: 1 };
-      case 'STAMP': return { s: sl.s * 2.6, o: 0, r: sl.r + 18 };
+      case 'SQUEEZE': return { sx: 0.001, x: sl.x + dir * (sl.wpx || 0) / 2, o: 1 };
+      case 'STAMP': return { s: sl.s * 2.6, o: 0, r: sl.r + 18 * dir };
       case 'LINE':  return { y: sl.y + unit * 0.3, o: 0 };
-      case 'ORBIT': return { x: sl.x + R * 0.9, z: -R, o: 0 };
-      default:      return { y: sl.y + unit * 0.55 * m, s: sl.s * (1 - 0.1 * m), o: 0 };
+      case 'ORBIT': return { x: sl.x + dir * R * 0.9, z: -R, o: 0 };
+      default:      return { x: sl.x + ex * unit * 0.55 * m, y: sl.y + ey * unit * 0.55 * m, s: sl.s * (1 - 0.1 * m), o: 0 };
     }
   }
 
   function leaveState(el) {
     const num = v => parseFloat(el.style.getPropertyValue(v)) || 0;
     if (reduceMotion()) return {};
-    const m = cfg.motion ?? 1;
+    const m = (cfg.motion ?? 1) * (variant ? variant.motion : 1);
+    const [ex, ey] = variant ? variant.enter : [0, 1];
+    const dir = variant ? variant.dir : 1;
     const R = Math.min(innerWidth * 0.34, unit * 3.6);
+    if (!el.classList.contains('w') || el.classList.contains('node') || el.classList.contains('tok')) return {};   // just fade
     switch (style) {
       case 'POP':   return { '--s': num('--s') * 1.5 };
       case 'INKBLOT': return { '--s': num('--s') * 1.06 };
-      case 'SQUEEZE': return { '--sx': 0.001, '--x': (num('--x') - (parseFloat(el.dataset.w) || 0) / 2) + 'px' };
+      case 'SQUEEZE': return { '--sx': 0.001, '--x': (num('--x') - dir * (parseFloat(el.dataset.w) || 0) / 2) + 'px' };
       case 'STAMP': return { '--s': num('--s') * 0.8 };
       case 'LINE':  return { '--y': (num('--y') - unit * 0.4) + 'px' };
-      case 'ORBIT': return { '--x': (num('--x') - R * 0.9) + 'px', '--z': -R + 'px' };
-      default:      return { '--y': (num('--y') - unit * 0.9 * m) + 'px' };
+      case 'ORBIT': return { '--x': (num('--x') - dir * R * 0.9) + 'px', '--z': -R + 'px' };
+      default:      return { '--x': (num('--x') - ex * unit * 0.9 * m) + 'px', '--y': (num('--y') - ey * unit * 0.9 * m) + 'px' };
     }
   }
 
@@ -808,7 +1030,18 @@
 
   function makeWord(sl) {
     const el = document.createElement('div');
-    el.className = 'w';
+    if (sl.kind === 'line' || sl.kind === 'caret') {          // connector lines and the code cursor
+      el.className = sl.kind === 'line' ? 'ln' : 'caret';
+      return el;
+    }
+    el.className = 'w' + (sl.node ? ' node' : '') + (sl.tok ? ' tok tok-' + sl.tok : '') +
+      (sl.kind === 'gutter' ? ' tok gutter' + (sl.comment ? ' comment' : '') : '');
+    if (sl.node) {
+      const star = document.createElement('span');
+      star.className = 'star';
+      star.textContent = '\u2726';
+      el.appendChild(star);
+    }
     const t = document.createElement('span');
     t.className = 't';
     t.textContent = sl.text;
@@ -831,6 +1064,8 @@
     el.style.setProperty('--o', sl.o);
     el.style.setProperty('--wipe', (sl.wipe || 0.2) + 's');
     el.style.setProperty('--sx', sl.sx == null ? 1 : sl.sx);
+    if (sl.len != null) { el.style.setProperty('--len', sl.len + 'px'); el.style.setProperty('--ang', sl.ang + 'deg'); }
+    if (sl.chars) el.style.setProperty('--chars', sl.chars);
     if (sl.wpx) el.dataset.w = sl.wpx;
     el.classList.toggle('active', sl.role === 'active');
     el.classList.toggle('past', sl.role === 'past');
@@ -873,6 +1108,7 @@
 
   function update(pos) {
     const loc = locate(pos);
+    chorusSwitch(loc);
     if (cfg.shuffle === 'line' && loc.kind === 'word' && loc.li !== lastShuffleLine) {
       if (lastShuffleLine !== -1) pickShuffle();
       lastShuffleLine = loc.li;
@@ -922,7 +1158,7 @@
       });
     }
     if (now - perfStart > 10000) {
-      call('report_perf', { fps: Math.round(perfFrames / ((now - perfStart) / 1000)), long_frames: perfLong, worst_ms: Math.round(perfWorst), overflow_px: Math.round(perfOverflow), centre_off_px: Math.round(perfCentreOff), style, words: stack.querySelectorAll('.w').length });
+      call('report_perf', { fps: Math.round(perfFrames / ((now - perfStart) / 1000)), long_frames: perfLong, worst_ms: Math.round(perfWorst), overflow_px: Math.round(perfOverflow), centre_off_px: Math.round(perfCentreOff), style, variety: variant ? `${variant.level} enter=${variant.enter} dir=${variant.dir} drift=${variant.drift} hue=${Math.round(variant.hue)}` : 'none', words: stack.querySelectorAll('.w').length });
       perfStart = now; perfFrames = 0; perfLong = 0; perfWorst = 0; perfOverflow = -1e9; perfCentreOff = 0;
     }
   }

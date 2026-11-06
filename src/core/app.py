@@ -39,6 +39,8 @@ STYLE_LABELS = {
     "SHIP": "Ship", "FISHEYE": "Fisheye", "FISHEYE_VISUAL": "Fisheye Visual", "VISUAL": "Visual",
     "POP": "Pop", "STAMP": "Stamp", "LINE": "Line", "ORBIT": "Orbit",
     "INKBLOT": "Inkblot", "SQUEEZE": "Squeeze", "REMOLD": "Remold",
+    "CONSTELLATION": "Constellation", "BRANCHES": "Branches", "WEB": "Web",
+    "CODE": "Code", "CODE_VISUAL": "Code Visual",
 }
 FONTS = ["Segoe UI Variable Display", "Segoe UI", "Bahnschrift", "Arial Black", "Impact",
          "Georgia", "Cascadia Code", "Trebuchet MS", "Verdana", "Comic Sans MS"]

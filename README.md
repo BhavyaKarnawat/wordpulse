@@ -16,7 +16,7 @@
 - **Lyrics on your desktop:** By default WordPulse draws behind your desktop icons, on top of your wallpaper, like a live wallpaper. The desktop looks normal until music plays, then the words appear. There's no window or taskbar button; everything lives in the tray.
 - **Word-by-word timing:** Each word lights up as it's sung. Songs with word-level timing are exact; line-timed songs get an estimate that learns each song's singing pace. You can also tap along to sync any song yourself (see below).
 - **Works with what you already play:** Uses Windows' built-in media controls (GSMTC) to follow Spotify, Apple Music, Tidal, YouTube Music, and browsers. No login.
-- **11 display styles.** The sung word always sits in the middle of the screen:
+- **16 display styles.** The sung word always sits in the middle of the screen:
   1. **Ship:** a typographic wall drifting in 3D.
   2. **Fisheye:** a convex lens stack with the sung word closest to the glass.
   3. **Fisheye Visual:** the lens plus icons.
@@ -28,6 +28,12 @@
   9. **Inkblot:** the old word melts into the new one like ink, slab and all, then snaps back to crisp text.
   10. **Squeeze:** the new word pushes in from the right and squashes the old one flat against its left edge.
   11. **Remold:** the old word's letters rearrange into the new word. Shared letters slide to their new spots, extra letters melt away, and new ones sprout from their neighbours while the slab stretches to fit.
+  12. **Constellation:** each word becomes a star joined to the last by a line that draws itself in. The map builds as the line is sung and pans to keep the current star centred.
+  13. **Branches:** words grow upward like a branching plant, alternating sides, with the odd fork.
+  14. **Web:** a mind-map. The sung word sits at the hub, and earlier words orbit it on rings joined by spokes.
+  15. **Code:** the line types itself out like code in an editor, with line numbers, syntax colours and a blinking cursor.
+  16. **Code Visual:** Code, plus each word's icon as a comment.
+- **Variety, so a session never feels the same:** each song draws its own style from its mood's pool (avoiding the last few used), plus its own slab tilt, colour shift, entry direction, motion strength and drift. **Lively** also gives the chorus its own style. You choose each mood's pool in Settings › Mood.
 - **Mood that follows the music:** WordPulse listens to the beat (on your PC only; audio is never saved or sent) and reads each song's lyric speed and genre. It then picks one of five moods: **Neon** for rap, drill and EDM, **Bright** for upbeat pop, **Heavy** for rock and metal, **Smooth** for R&B and soul, and **Soft** for ballads and acoustic songs. Each mood sets the style and the colours, and adds on-beat pulses and drop shakes. You can override the mood per song, and choose which style each mood uses.
 - **Auto Sync colours:** The highlight colour comes from the album art, and each mood re-tunes it.
 - **Works offline:** Every lyric download is saved, so songs you've played before work without internet. When you're offline the app says so, and retries until you're back online.

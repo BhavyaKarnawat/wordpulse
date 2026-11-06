@@ -12,7 +12,7 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from src.models.settings import (AUTO_MOOD, DEFAULT_MOOD_STYLES, FULLSCREEN_BG, AppSettings, DisplayMode, DisplayStyle,
+from src.models.settings import (AUTO_MOOD, DEFAULT_MOOD_STYLES, FULLSCREEN_BG, VARIETY, AppSettings, DisplayMode, DisplayStyle,
                                  POSITIONS, REDUCE_MOTION, SHUFFLE_MODES, SLAB_SHAPES)
 
 RUNTIME_ONLY = {"start_with_windows", "mock_mode", "window_opacity"}
@@ -54,13 +54,23 @@ def coerce(name: str, value: Any, current: Any) -> Any:
         raise ValueError(name)
     if name == "fullscreen_bg" and value not in FULLSCREEN_BG:
         raise ValueError(name)
+    if name == "variety" and value not in VARIETY:
+        raise ValueError(name)
     if name == "mood_styles":
+        # {mood: style or [styles]} -> {mood: [styles]}; an empty pool falls back to the default one
         if not isinstance(value, dict):
             raise ValueError(name)
-        out = dict(DEFAULT_MOOD_STYLES)
-        for mood, style in value.items():
-            if mood in DEFAULT_MOOD_STYLES:
-                out[mood] = DisplayStyle[str(style).upper()].value
+        out = {k: list(v) for k, v in DEFAULT_MOOD_STYLES.items()}
+        for mood, styles in value.items():
+            if mood not in DEFAULT_MOOD_STYLES:
+                continue
+            items = styles if isinstance(styles, (list, tuple)) else [styles]
+            pool = []
+            for st in items:
+                sid = DisplayStyle[str(st).upper()].value
+                if sid not in pool:
+                    pool.append(sid)
+            out[mood] = pool or list(DEFAULT_MOOD_STYLES[mood])
         return out
     if name.endswith("_color"):
         if not isinstance(value, str) or not HEX.match(value):
