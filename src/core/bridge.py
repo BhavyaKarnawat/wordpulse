@@ -370,9 +370,13 @@ class UIBridge:
     def get_wallpaper(self) -> str:
         """The desktop wallpaper as a data URL (used behind the lyrics in desktop mode)."""
         from src.core.desktop import wallpaper_data_url
-        if not hasattr(self, "_wallpaper_cache"):
+        if not getattr(self, "_wallpaper_cache", None):    # empty = not read yet, or reading failed
             self._wallpaper_cache = wallpaper_data_url()
         return self._wallpaper_cache
+
+    def forget_wallpaper(self) -> None:
+        """The wallpaper changed; the next get_wallpaper reads the new one."""
+        self._wallpaper_cache = ""
 
     def adjust_timing_offset(self, delta_ms: int) -> bool:
         if self._on_timing_offset_change:

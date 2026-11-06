@@ -13,6 +13,7 @@ from src.core.icon_mapper import LyricIconMapper
 from src.core.parser import LRCParser
 from src.lyrics.builtin_lyrics import BUILTIN_LYRICS
 from src.models.lyrics import LyricLine, LyricWord, LyricsDocument
+from src.version import APP_VERSION
 
 try:
     import syncedlyrics
@@ -27,6 +28,7 @@ class LyricsService:
     LRCLIB_GET_URL = "https://lrclib.net/api/get"
     LRCLIB_SEARCH_URL = "https://lrclib.net/api/search"
     NOT_FOUND_DAYS = 3
+    USER_AGENT = f"WordPulse/{APP_VERSION} (lyrics display for Windows)"
 
     def __init__(
         self,
@@ -47,6 +49,8 @@ class LyricsService:
 
         self.parser = parser or LRCParser()
         self.icon_mapper = icon_mapper or LyricIconMapper()
+        self._providers = None                # syncedlyrics sources, built on first use
+        self.last_fetch_offline = self.last_fetch_partial = False
 
     def _normalize_key(self, title: str, artist: str) -> str:
         clean_title = re.sub(r"[\(\[].*?[\)\]]", "", title)  # Strip (Remastered), [Live], etc.
@@ -57,69 +61,114 @@ class LyricsService:
         safe_filename = "".join(c if c.isalnum() or c in "-_" else "_" for c in norm_key)[:120]
         return self.cache_dir / f"{safe_filename}.json"
 
-    def _fetch_from_lrclib(self, title: str, artist: str, duration: float = 0.0) -> Optional[str]:
-        """Queries the public LRCLIB API for synced or plain lyrics."""
-        clean_title = re.sub(r"[\(\[].*?[\)\]]", "", title).strip()
-        params = {"track_name": clean_title, "artist_name": artist}
+    # ---- online sources ----
+    @staticmethod
+    def _simple(text: str) -> str:
+        return " ".join("".join(c if c.isalnum() else " " for c in (text or "").lower()).split())
+
+    def _is_match(self, r: dict, title: str, artist: str, duration: float) -> bool:
+        """True when a search result is plausibly this song (not just the first hit)."""
+        if r.get("instrumental"):
+            return False
+        want_t = self._simple(title)
+        got_t = self._simple(re.sub(r"[\(\[].*?[\)\]]", "", r.get("trackName") or ""))
+        if not want_t or not got_t or (want_t not in got_t and got_t not in want_t):
+            return False
+        got_a = self._simple(r.get("artistName"))
+        parts = [self._simple(a) for a in
+                 re.split(r",|&|\bfeat\.?|\bft\.?|\bwith\b|\bx\b", artist or "", flags=re.I)]
+        if not any(a and got_a and (a in got_a or got_a in a) for a in parts):
+            return False
+        r_dur = float(r.get("duration") or 0)
+        return not (duration > 0 and r_dur > 0 and abs(r_dur - duration) > 5)
+
+    def _fetch_lrclib(self, title: str, artist: str, duration: float = 0.0):
+        """LRCLIB exact lookup, then a checked search. Returns (synced, plain, reachable)."""
+        params = {"track_name": title, "artist_name": artist}
         if duration > 0:
             params["duration"] = str(int(duration))
+        plain, reached = None, False
 
-        self.last_fetch_offline = False
-        net_errors = 0
-
-        # 1. Direct GET
         try:
-            url = f"{self.LRCLIB_GET_URL}?{urllib.parse.urlencode(params)}"
-            req = urllib.request.Request(url, headers={"User-Agent": "WordPulse/1.2 (lyrics display for Windows)"})
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    synced = data.get("syncedLyrics")
-                    if synced:
-                        return synced
-                    plain = data.get("plainLyrics")
-                    if plain:
-                        return plain
+            data = self._http_json(f"{self.LRCLIB_GET_URL}?{urllib.parse.urlencode(params)}", timeout=4)
+            reached = True
+            if data.get("syncedLyrics"):
+                return data["syncedLyrics"], None, True
+            plain = data.get("plainLyrics") or None
         except urllib.error.HTTPError:
-            pass                     # the server answered (e.g. 404 = not in its database)
+            reached = True           # the server answered (e.g. 404 = not in its database)
         except Exception:
-            net_errors += 1          # no connection, DNS failure, timeout...
+            pass                     # no connection, DNS failure, timeout...
 
-        # 2. Search fallback
         try:
-            search_query = f"{clean_title} {artist}".strip()
-            url = f"{self.LRCLIB_SEARCH_URL}?q={urllib.parse.quote(search_query)}"
-            req = urllib.request.Request(url, headers={"User-Agent": "WordPulse/1.2 (lyrics display for Windows)"})
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                if resp.status == 200:
-                    results = json.loads(resp.read().decode("utf-8"))
-                    if isinstance(results, list) and len(results) > 0:
-                        first = results[0]
-                        synced = first.get("syncedLyrics")
-                        if synced:
-                            return synced
-                        plain = first.get("plainLyrics")
-                        if plain:
-                            return plain
+            q = urllib.parse.quote(f"{title} {artist}".strip())
+            results = self._http_json(f"{self.LRCLIB_SEARCH_URL}?q={q}", timeout=4)
+            reached = True
+            matches = [r for r in results if isinstance(r, dict) and self._is_match(r, title, artist, duration)] \
+                if isinstance(results, list) else []
+            for r in matches:
+                if r.get("syncedLyrics"):
+                    return r["syncedLyrics"], None, True
+            plain = plain or next((r["plainLyrics"] for r in matches if r.get("plainLyrics")), None)
         except urllib.error.HTTPError:
+            reached = True
+        except Exception:
             pass
-        except Exception:
-            net_errors += 1
+        return None, plain, reached
 
-        if net_errors == 2:
-            self.last_fetch_offline = True   # both lookups failed to connect: offline, not "not found"
-            return None
+    def _other_providers(self) -> list:
+        """(name, provider) pairs from syncedlyrics, best word timing first; built once."""
+        if not HAS_SYNCEDLYRICS:
+            return []
+        if self._providers is None:
+            from syncedlyrics.providers import Genius, Megalobiz, Musixmatch, NetEase
+            made = []
+            for name, factory in (("Musixmatch", lambda: Musixmatch(enhanced=True)), ("NetEase", NetEase),
+                                  ("Megalobiz", Megalobiz), ("Genius", Genius)):
+                try:
+                    made.append((name, factory()))
+                except Exception:
+                    logging.getLogger("wordpulse").warning("Lyrics source %s unavailable", name)
+            self._providers = made
+        return self._providers
 
-        # 3. syncedlyrics library fallback
-        if HAS_SYNCEDLYRICS:
+    def _fetch_online(self, title: str, artist: str, duration: float = 0.0):
+        """Tries every source until one has synced lyrics; plain text only if none do.
+
+        Returns (raw_lrc, source). Sets last_fetch_offline when no source could be reached,
+        and last_fetch_partial when some failed (so "not found" isn't remembered).
+        """
+        clean_title = re.sub(r"[\(\[].*?[\)\]]", "", title).strip()
+        self.last_fetch_offline = self.last_fetch_partial = False
+        plain = None
+        unreachable = 0
+
+        synced, lr_plain, reached = self._fetch_lrclib(clean_title, artist, duration)
+        if synced:
+            return synced, "LRCLIB"
+        if lr_plain:
+            plain = (lr_plain, "LRCLIB")
+        if not reached:
+            unreachable += 1
+
+        providers = self._other_providers()
+        term = f"{clean_title} {artist}".strip()
+        for name, provider in providers:
             try:
-                lrc = syncedlyrics.search(f"{clean_title} {artist}", enhanced=True)
-                if lrc:
-                    return lrc
+                lrc = provider.get_lrc(term)
             except Exception:
-                pass
+                unreachable += 1
+                continue
+            if lrc and lrc.synced:
+                return lrc.synced, name
+            if lrc and lrc.unsynced and not plain:
+                plain = (lrc.unsynced, name)
 
-        return None
+        if plain:
+            return plain
+        self.last_fetch_offline = unreachable == 1 + len(providers)
+        self.last_fetch_partial = unreachable > 0
+        return None, ""
 
     def create_empty_or_placeholder_doc(self, title: str, artist: str) -> LyricsDocument:
         """Returns a stylish placeholder when no synchronized lyrics are found."""
@@ -206,9 +255,9 @@ class LyricsService:
             path.unlink()
 
     # ---- fixing wrong lyrics ----
-    def _http_json(self, url: str):
-        req = urllib.request.Request(url, headers={"User-Agent": "WordPulse/1.2 (lyrics display for Windows)"})
-        with urllib.request.urlopen(req, timeout=6) as resp:
+    def _http_json(self, url: str, timeout: float = 6):
+        req = urllib.request.Request(url, headers={"User-Agent": self.USER_AGENT})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
     def search_alternatives(self, title: str, artist: str, query: str = "") -> list:
@@ -272,19 +321,18 @@ class LyricsService:
         if none_path.exists() and time.time() - none_path.stat().st_mtime < self.NOT_FOUND_DAYS * 86400:
             return self.create_empty_or_placeholder_doc(title, artist)
 
-        # 3. Online fetch
-        self.last_fetch_offline = False
-        raw_lrc = self._fetch_from_lrclib(title, artist, duration)
+        # 3. Online fetch, across every source
+        raw_lrc, source = self._fetch_online(title, artist, duration)
         if raw_lrc:
-            # Save to cache
             try:
                 with open(cache_path, "w", encoding="utf-8") as f:
-                    json.dump({"title": title, "artist": artist, "raw_lrc": raw_lrc}, f, indent=2)
+                    json.dump({"title": title, "artist": artist, "raw_lrc": raw_lrc, "source": source}, f, indent=2)
             except Exception:
                 pass
 
             try:
                 doc = self.parser.parse(raw_lrc, title=title, artist=artist)
+                doc.source = source
                 return self.icon_mapper.enrich_document(doc)
             except Exception:
                 logging.getLogger("wordpulse").exception("Couldn't read the lyrics found for %s", title)
@@ -295,16 +343,18 @@ class LyricsService:
                 return self.create_empty_or_placeholder_doc(title, artist)
 
         # 4. Offline: say so (the app retries later); nothing is remembered
-        if getattr(self, "last_fetch_offline", False):
+        if self.last_fetch_offline:
             doc = self.create_empty_or_placeholder_doc(title, artist)
             doc.source = "Offline"
             return doc
 
-        # 5. Genuinely not found: remember that for a few days
-        try:
-            none_path.write_text(json.dumps({"title": title, "artist": artist}), encoding="utf-8")
-        except Exception:
-            pass
+        # 5. Not found anywhere we could reach: remember that for a few days.
+        #    If a source was down, don't remember, so the next play asks again.
+        if not self.last_fetch_partial:
+            try:
+                none_path.write_text(json.dumps({"title": title, "artist": artist}), encoding="utf-8")
+            except Exception:
+                pass
         return self.create_empty_or_placeholder_doc(title, artist)
 
     def prune_cache(self, max_files: int = 4000) -> int:

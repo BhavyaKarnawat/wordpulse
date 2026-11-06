@@ -198,14 +198,34 @@ class AppCoordinator:
         self.push()
         self.save()
         if self.window and HAS_WEBVIEW and self.settings.display_mode != DisplayMode.DESKTOP_WALLPAPER:
-            try:
-                self.window.on_top = enable
-            except Exception:
-                pass
+            self._set_on_top(enable)
 
     def toggle_dnd(self):
         self.dnd = not self.dnd
         self._update_hidden()
+
+    def _set_on_top(self, enable: bool):
+        """Always-on-top, set on the window's own thread.
+
+        pywebview's window.on_top sets the WinForms TopMost property from whichever thread
+        calls it (here, the page's button handler). That holds Python's lock while Windows
+        waits on the window thread, which itself waits on Python: the window froze for good
+        when switching from fullscreen to the floating window.
+        """
+        form = getattr(self.window, "native", None) if self.window else None
+        if form is None:
+            return
+
+        def _apply():
+            form.TopMost = bool(enable)
+        try:
+            if form.InvokeRequired:
+                from System import Action
+                form.Invoke(Action(_apply))
+            else:
+                _apply()
+        except Exception:
+            log.exception("Setting always-on-top failed")
 
     def _window_hwnd(self) -> int:
         try:
@@ -269,7 +289,7 @@ class AppCoordinator:
                     self.window.toggle_fullscreen()
                 self.window.resize(1000, 520)
             self._reposition()
-            self.window.on_top = self.settings.always_on_top
+            self._set_on_top(self.settings.always_on_top)
         except Exception:
             log.exception("Display mode switch failed")
 
@@ -582,6 +602,38 @@ class AppCoordinator:
             cover_monitor(self._window_hwnd(), rect, topmost=self.screensaver)
         self._covered_rect = rect
 
+    def _wallpaper_tick(self, now: float):
+        """Follows wallpaper changes (slideshow or a new picture), checked every second.
+
+        The page paints a copy of the wallpaper behind the lyrics, so it needs the new one;
+        and Explorer re-stacks its wallpaper window on top of ours when it changes.
+        """
+        from src.core.desktop import wallpaper_signature
+        if not (self.window and HAS_WEBVIEW):
+            return
+        on_desktop = self.settings.display_mode == DisplayMode.DESKTOP_WALLPAPER
+        if on_desktop:
+            for pin in [self.pinner] + [p for _, p in self.extra_windows]:
+                if pin.is_covered():
+                    log.info("Wallpaper window moved over the lyrics; restacking")
+                    pin.restack()
+        if not on_desktop and self.settings.fullscreen_bg != "wallpaper":
+            return
+        if now - getattr(self, "_wall_checked_at", 0) < 2:
+            return
+        self._wall_checked_at = now
+        sig = wallpaper_signature()
+        seen, last = getattr(self, "_wall_sig", None), getattr(self, "_wall_last", None)
+        self._wall_last = sig
+        if seen is None:
+            self._wall_sig = sig
+        elif sig != seen and sig == last:         # changed, and settled (Explorer has finished writing it)
+            self._wall_sig = sig
+            log.info("Wallpaper changed; refreshing the background")
+            self.bridge.forget_wallpaper()
+            self.runtime["wallpaper_rev"] = self.runtime.get("wallpaper_rev", 0) + 1
+            self.push()
+
     @staticmethod
     def page_stalled(last_poll: float, now: float, started: float, limit: float = 20.0) -> bool:
         """The page polls several times a second; a long silence means it crashed or hung."""
@@ -866,6 +918,7 @@ class AppCoordinator:
                     if self.settings.display_mode == DisplayMode.DESKTOP_WALLPAPER and not self.pinner.is_healthy():
                         log.warning("Desktop host changed (Explorer restarted?); reattaching")
                         self.pinner.reattach()
+                    self._wallpaper_tick(now)
                     # the app list only feeds the settings window; refresh it every 10 s
                     if not self.settings.mock_mode and (now - self._players_at > 10 or self.settings_window is not None and now - self._players_at > 2):
                         self._players_at = now

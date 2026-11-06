@@ -99,9 +99,12 @@
 
   const MODES = ['DESKTOP_WALLPAPER', 'FULLSCREEN_AMBIENT', 'DESKTOP_OVERLAY'];
   let wallpaperLoaded = false;
+  let wallpaperRev = 0;
 
   async function loadWallpaper() {
     const a = api();
+    const rev = (cfg && cfg.wallpaper_rev) || 0;       // bumps when the wallpaper changes (slideshow)
+    if (rev !== wallpaperRev) { wallpaperRev = rev; wallpaperLoaded = false; }
     if (wallpaperLoaded || !a || !a.get_wallpaper) return;
     wallpaperLoaded = true;
     try {
@@ -238,7 +241,7 @@
     body.dataset.fsbg = s.fullscreen_bg || 'black';
     setLayout(s.fullscreen_layout || 'lyrics');
     applyArt();
-    if (s.fullscreen_bg === 'wallpaper') loadWallpaper();
+    if (s.fullscreen_bg === 'wallpaper' || mode === 'DESKTOP_WALLPAPER') loadWallpaper();
     root.setProperty('--motion', s.motion ?? 1);
     body.classList.toggle('reduce-motion', reduceMotion());
     body.classList.toggle('lowpower', !!(s.battery_saver && s.on_battery));

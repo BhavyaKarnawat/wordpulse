@@ -50,6 +50,9 @@ if IS_WINDOWS:
     user32.SetThreadDpiAwarenessContext.argtypes = [ctypes.c_void_p]
     WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
     user32.EnumWindows.argtypes = [WNDENUMPROC, wintypes.LPARAM]
+    user32.GetWindow.restype = wintypes.HWND
+    user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+    user32.RedrawWindow.argtypes = [wintypes.HWND, ctypes.c_void_p, wintypes.HANDLE, wintypes.UINT]
 
 GWL_STYLE = -16
 GWL_EXSTYLE = -20
@@ -79,6 +82,11 @@ SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN = 76, 77
 SM_CXSCREEN, SM_CYSCREEN = 0, 1
 SW_SHOW = 5
 DPI_PER_MONITOR_V2 = ctypes.c_void_p(-4)
+GW_HWNDNEXT, GW_CHILD = 2, 5
+HWND_BOTTOM = 1
+RDW_INVALIDATE, RDW_ERASE, RDW_ALLCHILDREN, RDW_UPDATENOW, RDW_FRAME = 0x1, 0x4, 0x80, 0x100, 0x400
+BACKGROUND_PICTURE = 0      # Settings > Personalisation > Background: 0 picture, 1 solid colour,
+                            # 2 slideshow, 3 Windows spotlight
 
 
 class _PhysicalPixels:
@@ -139,6 +147,7 @@ class DesktopPinner:
         self._progman = None
         self.rect = None
         self.attached = False
+        self._in_progman = False                # 24H2+ layout: we share Progman with the wallpaper window
 
     def attach(self, hwnd: int, rect=None) -> bool:
         """rect = (x, y, w, h) of the monitor in physical screen pixels; default the primary one."""
@@ -158,6 +167,43 @@ class DesktopPinner:
             return False
         # our host was Progman itself (24H2+) or a WorkerW that Progman owns; either way Progman must be the same
         return progman == self._progman
+
+    def is_covered(self) -> bool:
+        """True when Explorer's wallpaper window has moved on top of us (24H2+ layout).
+
+        Explorer re-stacks it when the wallpaper changes (slideshow, or a new picture),
+        which leaves us running but invisible underneath.
+        """
+        if not IS_WINDOWS or not self.attached or not self.hwnd or not self._in_progman:
+            return False
+        parent = user32.GetParent(self.hwnd)
+        worker = user32.FindWindowExW(parent, None, "WorkerW", None) if parent else None
+        if not worker:
+            return False
+        h = user32.GetWindow(parent, GW_CHILD)
+        for _ in range(64):                      # first of the two in z-order is the one on top
+            if not h or h == self.hwnd:
+                return False
+            if h == worker:
+                return True
+            h = user32.GetWindow(h, GW_HWNDNEXT)
+        return False
+
+    def restack(self) -> None:
+        """Puts us back between the icons (above) and the wallpaper (below)."""
+        if not IS_WINDOWS or not self.hwnd or not self._in_progman:
+            return
+        parent = user32.GetParent(self.hwnd)
+        if not parent:
+            return
+        defview = user32.FindWindowExW(parent, None, "SHELLDLL_DefView", None)
+        worker = user32.FindWindowExW(parent, None, "WorkerW", None)
+        flags = SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE
+        if defview:
+            user32.SetWindowPos(self.hwnd, defview, 0, 0, 0, 0, flags)
+        if worker:
+            # to the very bottom, so it stays under every lyrics window (one per display)
+            user32.SetWindowPos(worker, HWND_BOTTOM, 0, 0, 0, 0, flags)
 
     def reattach(self) -> bool:
         if not self.hwnd:
@@ -200,9 +246,8 @@ class DesktopPinner:
         x, y = mx - vx, my - vy
         user32.SetWindowPos(hwnd, insert_after or 0, x, y, w, h,
                             SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED)
-        if wallpaper_worker:
-            # keep Explorer's wallpaper below us
-            user32.SetWindowPos(wallpaper_worker, hwnd, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE)
+        self._in_progman = bool(insert_after and wallpaper_worker)
+        self.restack()                           # keep Explorer's wallpaper below us
         user32.ShowWindow(hwnd, SW_SHOW)
         self.attached = True
         return True
@@ -241,11 +286,46 @@ def wallpaper_path() -> str:
     return buf.value
 
 
+def background_type() -> int:
+    """What Windows shows as the background (see BACKGROUND_PICTURE); picture if unknown."""
+    if not IS_WINDOWS:
+        return BACKGROUND_PICTURE
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers") as key:
+            return int(winreg.QueryValueEx(key, "BackgroundType")[0])
+    except (OSError, ValueError):
+        return BACKGROUND_PICTURE
+
+
 def refresh_wallpaper() -> None:
     """Makes Explorer repaint the wallpaper (clears anything we left behind)."""
+    if not IS_WINDOWS:
+        return
+    if background_type() != BACKGROUND_PICTURE:
+        # Setting the wallpaper again would switch a slideshow or Spotlight off; just repaint
+        progman = user32.FindWindowW("Progman", None)
+        if progman:
+            user32.RedrawWindow(progman, None, None,
+                                RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME)
+        return
     path = wallpaper_path()
     if path:
         user32.SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, ctypes.c_wchar_p(path), SPIF_SENDCHANGE)
+
+
+def wallpaper_signature() -> tuple:
+    """Changes whenever the wallpaper does. A slideshow keeps the same file path
+    (…\\Themes\\TranscodedWallpaper) and rewrites it, so the file's time and size count too."""
+    path = wallpaper_path()
+    if not path:
+        return ("",)
+    try:
+        st = os.stat(path)
+        return (path, st.st_mtime_ns, st.st_size)
+    except OSError:
+        return (path,)
 
 
 def wallpaper_data_url(max_width: int = 2560) -> str:

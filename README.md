@@ -44,7 +44,7 @@ Each word lights up the moment it's sung. Works with Spotify, Apple Music, YouTu
 
 ## Install
 
-1. Download **`WordPulse-Setup-1.0.1.exe`** from [Releases](https://github.com/BhavyaKarnawat/wordpulse/releases/latest). There's also a portable `WordPulse.exe` if you'd rather not install.
+1. Download **`WordPulse-Setup-1.0.2.exe`** from [Releases](https://github.com/BhavyaKarnawat/wordpulse/releases/latest). There's also a portable `WordPulse.exe` if you'd rather not install.
 2. Run it. It installs just for you (no admin rights needed) and can start with Windows.
 3. Play a song. That's it.
 

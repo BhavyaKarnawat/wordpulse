@@ -41,7 +41,7 @@ def test_damaged_cache_file_is_dropped_and_refetched(tmp_path):
 
 def test_lyrics_that_cannot_be_parsed_fall_back_to_a_placeholder(tmp_path, monkeypatch):
     svc = LyricsService(cache_dir=str(tmp_path))
-    monkeypatch.setattr(svc, "_fetch_from_lrclib", lambda *a, **k: "[00:01.00] fine")
+    monkeypatch.setattr(svc, "_fetch_online", lambda *a, **k: ("[00:01.00] fine", "LRCLIB"))
     monkeypatch.setattr(svc.parser, "parse", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("bad")))
     doc = svc.get_lyrics("Unlisted Song", "Nobody In Particular")
     assert doc is not None and doc.is_synced is False

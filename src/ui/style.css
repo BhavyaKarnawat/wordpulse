@@ -415,6 +415,9 @@ body.controls-revealed .chrome { opacity: 1; pointer-events: auto; transform: tr
   background: rgba(255,255,255,.08); color: #fff; border: 0; border-radius: 8px; padding: 7px 10px; font: inherit; cursor: pointer;
   color-scheme: dark;
 }
+/* the open list is drawn by Windows: without its own colours it was white, with white text from the select */
+#styleSelect option, #styleSelect optgroup { background-color: #1c1c22; color: #f2f2f5; }
+#styleSelect option:checked { background-color: #34343d; }
 #demoBadge { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; }
 #demoBadge.demo-active { color: var(--hl); }
 

@@ -57,6 +57,9 @@
 
   select, input[type=text], textarea { background: #222228; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 190px; }
   select:focus, input[type=text]:focus, textarea:focus { outline: 2px solid var(--hl); outline-offset: -1px; }
+  /* the open list is drawn by Windows: give it the dark colours explicitly */
+  option, optgroup { background-color: #1c1c22; color: #f2f2f5; }
+  option:checked { background-color: #34343d; }
   input[type=range] { accent-color: var(--hl); width: 190px; }
   input[type=color] { width: 40px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; cursor: pointer; }
   .val { color: var(--dim); font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; display: inline-block; }
