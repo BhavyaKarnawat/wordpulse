@@ -60,3 +60,42 @@ def test_all_displays_lists_every_extra_monitor(monkeypatch):
     c.settings.monitor = -1
     c.settings.display_mode = DisplayMode.FULLSCREEN_AMBIENT
     assert c._extra_monitor_rects() == []                    # only on the desktop
+
+
+def test_player_closing_mid_song_marks_playback_stopped():
+    import asyncio
+    c = AppCoordinator(settings=AppSettings(mock_mode=True))
+    asyncio.run(c.tick_media_update())                       # a song is playing
+    assert c.bridge.get_playback()["status"] == "PLAYING"
+
+    async def gone():
+        return None
+    c.mock_provider.get_current_track = gone                 # the music app closes
+    asyncio.run(c.tick_media_update())
+    pb = c.bridge.get_playback()
+    assert pb["status"] == "STOPPED"
+    first = pb["position"]
+    assert c.bridge.get_playback()["position"] == first      # the clock no longer runs on
+
+
+def test_lyrics_hide_after_the_player_disappears():
+    c = AppCoordinator(settings=AppSettings(mock_mode=True, hide_on_fullscreen=False))
+    assert c.settings.hide_when_paused_s == 10               # the new default
+    c._update_hidden(None)                                   # nothing playing
+    assert c.runtime["hidden"] is False
+    c._paused_since = time.time() - 11
+    c._update_hidden(None)
+    assert c.runtime["hidden"] is True
+    c._update_hidden()                                       # a re-check (e.g. hotkey) keeps the state
+    assert c.runtime["hidden"] is True
+
+
+def test_existing_installs_get_the_new_pause_default(tmp_path):
+    import json
+    from src.core.config import ConfigStore
+    (tmp_path / "settings.json").write_text(json.dumps({"hide_when_paused_s": 0, "welcomed": True}))
+    s = ConfigStore(tmp_path).load()
+    assert s.hide_when_paused_s == 10 and s.settings_version == 2
+    # someone who picks "never" after the update keeps it
+    (tmp_path / "settings.json").write_text(json.dumps({"hide_when_paused_s": 0, "settings_version": 2}))
+    assert ConfigStore(tmp_path).load().hide_when_paused_s == 0

@@ -743,10 +743,14 @@ class AppCoordinator:
         extra = f" · {MOOD_LABELS.get(mood, mood)}" + (f" {self.runtime['mood_bpm']} BPM" if self.runtime.get("mood_bpm") else "") if mood else ""
         self.on_status(f"WordPulse\n{text[:70]}\nLyrics: {kind}{extra}")
 
-    def _update_hidden(self, track: Optional[TrackInfo] = None):
+    _KEEP = object()
+
+    def _update_hidden(self, track=_KEEP):
+        """track: the latest poll (None = nothing playing at all); omitted = re-check without new playback info."""
         s, now = self.settings, time.time()
-        playing = bool(track and track.status == PlaybackStatus.PLAYING) if track is not None else (self._paused_since is None)
-        if track is not None:
+        if track is not AppCoordinator._KEEP:
+            # paused, stopped and "no music app" all count as not playing for the hide timer
+            playing = bool(track and track.status == PlaybackStatus.PLAYING)
             self._paused_since = None if playing else (self._paused_since or now)
         hidden = self.dnd
         if s.hide_on_fullscreen and s.display_mode != DisplayMode.FULLSCREEN_AMBIENT and not self.screensaver \
@@ -775,6 +779,11 @@ class AppCoordinator:
         if not track:
             if self.power_manager.is_inhibited:
                 self.power_manager.prevent_sleep(False)
+            # the music app closed or ended its session: tell the page it's stopped so the words
+            # stop moving (otherwise its clock would carry on as if the song were still playing)
+            if self.current_track is not None and self.bridge._current_status != "STOPPED":
+                self.bridge.update_playback_position(self.bridge._current_position, "STOPPED",
+                                                     self.current_track.track_id)
             return None
 
         if self.settings.keep_awake and track.status == PlaybackStatus.PLAYING:

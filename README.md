@@ -27,6 +27,7 @@ Each word lights up the moment it's sung. Works with Spotify, Apple Music, YouTu
 - **Mood that follows the music.** It listens to the beat (on your PC only) and reads the song's speed and genre, then picks a look: Neon for rap and EDM, Bright for pop, Heavy for rock, Smooth for R&B, Soft for ballads. Words pulse on the beat.
 - **Never the same twice.** Variety gives every song its own style, colour shift, tilt and motion, and Lively gives the chorus a look of its own.
 - **Fullscreen views.** Lyrics, a now-playing card, or the album cover filling the screen with the lyrics on top. Real play, pause and skip controls for your music app.
+- **Gets out of the way.** The lyrics fade out 10 seconds after you pause or close your music app (adjustable), and come back when you press play.
 - **Light enough to leave on.** About 3% of one CPU core when music is paused. It steps aside during games and fullscreen video, and has a frame-rate setting for laptops.
 - **Works offline** for songs you've played before, because lyrics are saved as you listen.
 

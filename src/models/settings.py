@@ -87,7 +87,7 @@ class AppSettings:
     # behaviour
     keep_awake: bool = True
     hide_on_fullscreen: bool = True    # step aside for games / fullscreen video
-    hide_when_paused_s: int = 0        # 0 = never
+    hide_when_paused_s: int = 10       # fade the lyrics out this long after pausing (0 = never)
     hotkeys_enabled: bool = True
     timing_offset_ms: int = 0          # global; per-song offsets are stored separately
     preferred_player: str = "auto"     # "auto" or part of an app id, e.g. "Spotify"
@@ -96,6 +96,7 @@ class AppSettings:
     update_repo: str = "BhavyaKarnawat/wordpulse"   # GitHub repo whose releases are checked
     last_update_check: float = 0.0     # when we last looked (daily at most)
     welcomed: bool = False             # first-run welcome shown
+    settings_version: int = 2          # bumped when a default changes for existing installs
 
     # runtime only (not saved)
     start_with_windows: bool = False

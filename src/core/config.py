@@ -138,6 +138,11 @@ class ConfigStore:
                 setattr(s, f.name, coerce(f.name, saved[f.name], getattr(s, f.name)))
             except Exception:
                 pass   # an unknown or broken value keeps the default
+        if saved and int(saved.get("settings_version", 1) or 1) < 2:
+            # v1 saved "never hide when paused" as the default; the default is now 10 s
+            if not saved.get("hide_when_paused_s"):
+                s.hide_when_paused_s = AppSettings().hide_when_paused_s
+            s.settings_version = 2
         return s
 
     def save(self, s: AppSettings) -> bool:
